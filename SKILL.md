@@ -77,18 +77,15 @@ Resume: `run.json` lives in the **clone project root**, which in scaffold mode i
 
 Everything below measures **one page at rest**. If the target is an application — behind a login,
 inside an iframe (Shopify App Bridge, embedded dashboards), or valuable for its **multi-step
-flows** rather than its landing page — that shape is wrong and this pipeline will quietly produce
-a shallow answer.
+flows** rather than its landing page — that shape is wrong and this pipeline quietly produces a
+shallow answer. **Read `references/flows.md` instead**, and return here for the visual layer only
+if the visual layer is genuinely the deliverable.
 
-**Read `references/flows.md` instead**, then come back for the visual layer only if the visual
-layer is genuinely the deliverable. It covers authentication via an operator-driven persistent
-profile (never credentials in a script), finding the real document inside an iframe, discovering
-candidate flows, capturing a *state* rather than a screenshot, and deliberately provoking the
-empty / validation / loading / error / resume states that a happy-path walkthrough misses.
-
-For an app the default deliverable is a **flow map**, not a stylesheet — `flows.md` §F0 explains
-why, including when the target is built on a design system you should be importing rather than
-reproducing.
+It covers operator-driven auth (a persistent profile, never credentials in a script), finding the
+real document inside an iframe, discovering candidate flows, capturing a *state* rather than a
+screenshot, and provoking the empty / validation / loading / error / resume states a happy-path
+walkthrough misses. For an app the default deliverable is a **flow map**, not a stylesheet — §F0
+says why, including when the target runs on a design system you should import rather than clone.
 
 ## Step 1 — navigate, and decide where the code goes
 
