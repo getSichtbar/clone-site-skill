@@ -75,6 +75,31 @@ Two rules earned the hard way, both now written down:
 > **`IntersectionObserver` may be entirely absent.** On a GSAP site the reveals are ScrollTrigger
 > timelines. Inferring IO from behaviour makes every reveal fire at visibly the wrong moment.
 
+## Apps, not just sites (1.2)
+
+`references/flows.md` + `scripts/extract-flow.js` handle a target that is an **application**:
+behind a login, inside an iframe, and valuable for its flows rather than its landing page.
+
+- **auth** is the operator's job: a persistent profile you log into once by hand. No credential
+  ever enters a script, a flag or a prompt, and the profile is always gitignored.
+- **iframes**: an embedded app is not the top document. Enumerate frames, measure the right one,
+  label coordinates frame-relative.
+- **discovery** proposes flows from the page (forms with their required-field counts, wizards with
+  a real step signal, empty states, overlay triggers) instead of making you author step lists blind.
+- **a state, not a screenshot**: every field's `required`/`pattern`/`autocomplete`/`aria-describedby`
+  and the browser's own `validity` verdict — the validation *contract*, which no screenshot contains.
+- **the states everyone forgets**: empty, validation, loading, error, resume-after-reload, and
+  destructive-stopped-at-confirmation.
+- **`diff(a, b)`** describes the transition — fields gained/lost, what was announced to a screen
+  reader, whether the primary action became enabled, where focus went.
+
+Default deliverable for an app is a **flow map**, not a stylesheet. If the target is built on a
+design system (Polaris, MUI, shadcn, Carbon), import it rather than reproducing its computed
+styles — §F0 makes that argument properly.
+
+Nothing stores request or response **bodies**, and password/secret-shaped field values are
+redacted: on an authenticated app those are tenant data.
+
 ## Layout
 
 | path | contents |

@@ -6,7 +6,7 @@ argument-hint: "<url> [--static] [--pages N] [--sections ids] [--max-parallel N]
 license: MIT
 metadata:
   author: aatmik
-  version: "1.1.0"
+  version: "1.2.0"
   category: frontend
 allowed-tools:
   - Task
@@ -72,6 +72,23 @@ This table is a **copy for immediate branching**; `references/scaling.md` owns i
 Resume: `run.json` lives in the **clone project root**, which in scaffold mode is `--out`, not your cwd — so look it up in this order and stop at the first hit: `./.clone/run.json`, `<--out>/.clone/run.json`, `./<domain>-clone/.clone/run.json`. On a hit, `cd` to that root and take every path from its `stack`; on more than one, use the newest `updatedAt` and say which you picked. Skipping this lookup silently starts a fresh run and re-measures the whole original — the one cost resume exists to avoid. Then: if `phase != "done"`, skip every `done` phase and **never re-measure the original** — measurement is the expensive half. Reset `running` sections to `pending`. Write `run.json` atomically (`.tmp` → `mv`) on every state transition, not just wave boundaries.
 
 **Before you fan out, and any time the page is large: read `references/scaling.md`** — profiles, `filePath` discipline, `run.json` checkpointing, and `--resume`.
+
+## Step 0b — is the target a site or an app?
+
+Everything below measures **one page at rest**. If the target is an application — behind a login,
+inside an iframe (Shopify App Bridge, embedded dashboards), or valuable for its **multi-step
+flows** rather than its landing page — that shape is wrong and this pipeline will quietly produce
+a shallow answer.
+
+**Read `references/flows.md` instead**, then come back for the visual layer only if the visual
+layer is genuinely the deliverable. It covers authentication via an operator-driven persistent
+profile (never credentials in a script), finding the real document inside an iframe, discovering
+candidate flows, capturing a *state* rather than a screenshot, and deliberately provoking the
+empty / validation / loading / error / resume states that a happy-path walkthrough misses.
+
+For an app the default deliverable is a **flow map**, not a stylesheet — `flows.md` §F0 explains
+why, including when the target is built on a design system you should be importing rather than
+reproducing.
 
 ## Step 1 — navigate, and decide where the code goes
 
@@ -208,6 +225,7 @@ Everything lives under `.clone/` in the clone project root.
 | `css/` · `assets/` · `screenshots/` | Recovered cross-origin CSS; byte-exact mirror staging; page-level `orig-w<width>-full.{webp,png}` / `clone-w<width>-full.{webp,png}` plus `orig-w<width>-tile-<NN>.webp` for very tall pages. |
 | `sections/<id>/` | `spec.json`, `content.md`, `PROMPT.md`, orig+clone captures (`.webp` for agents, `.png` for `visual-diff.mjs`), `report.md`, `requests.json`, `diff.json`, `geometry.md`. |
 | `pages/<pageId>/` | `--pages > 1` only; same schemas per extra route. |
+| `flows.json` · `flows/<flowId>/` · `FLOW-MAP.md` | App targets only (`references/flows.md`): per-flow state records, per-step captures, and the flow map. `profile/` holds a live session and is **always** gitignored. |
 | `VERIFY.md` · `CLONE-REPORT.md` · `UNRESOLVED.md` | Gate table; final report; whatever the repair budget could not close. |
 
 Close by linking `.clone/CLONE-REPORT.md` and `.clone/PROVENANCE.md`.
