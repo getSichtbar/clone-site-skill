@@ -1,0 +1,93 @@
+# clone-site
+
+A Claude Code skill that rebuilds a target URL **in real code**, from measurements taken off the
+running page — computed styles, CSSOM rules and keyframes, `document.fonts`,
+`getBoundingClientRect`, `getAnimations()`, the network log.
+
+**The one rule that makes it work: every number written into the clone was measured off the live
+page.** Screenshots are for human judgement and for giving each section agent a visual target —
+never for deriving a colour, a gap, or a font size.
+
+## Install
+
+```bash
+git clone https://github.com/aatmik-panse/clone-site-skill ~/.claude/skills/clone-site
+```
+
+Then in Claude Code:
+
+```
+/clone-site https://example.com --thorough
+```
+
+Requires Chrome (the skill drives it over CDP) and Node 18+. If Chrome DevTools MCP cannot
+launch, `references/troubleshooting.md` covers the fallbacks.
+
+## What it does
+
+```
+measure → mirror assets → emit tokens → cut into sections → fan out agents → verify → repair
+```
+
+- **Measures** the foundation: palette clustered by painted area, type scale by character
+  weight, spacing base unit, breakpoints, container widths, the fluid `clamp()` rails
+- **Mirrors** every asset byte-for-byte with sha256 provenance — no remote URL survives into
+  the build, no font CDN request
+- **Cuts** the page into sections on six independent boundary signals, dedupes by content and
+  structure hash, then builds them with a parallel team of section agents that each own exactly
+  one file
+- **Verifies** against the original per section per width: pixel diff, perceptual hash, worst
+  tile, geometry probes, text fidelity, token drift, overflow sweep, console and HTTP errors
+- **Repairs** in a bounded loop, and writes whatever it could not close into `UNRESOLVED.md`
+  with its numbers rather than claiming a gate it did not measure
+
+Output stacks: Next App Router + Tailwind v4 (default), Vite/Astro/SvelteKit/Nuxt/Remix by
+detection, or framework-agnostic `--static`.
+
+## What's new in 1.1
+
+Motion. The skill already captured motion **from the browser** (CSSOM keyframes, transitions,
+`getAnimations()`, WAAPI hooks, builder manifests). 1.1 adds capture **from source**, which is
+where a bespoke site actually keeps its configuration:
+
+- **`references/motion-source.md`** — recover a hand-rolled motion system from its own bundle.
+  Runtime introspection cannot see a `once:true` trigger that already fired, a timeline for a
+  section still below the fold, or a threshold living in an `if (scroll > N)` branch. The source
+  can. Eleven things to extract, each otherwise guessed.
+- **`scripts/extract-motion-attrs.js`** — harvests the site's own declarative motion vocabulary.
+  It *discovers* the attribute names rather than hard-coding a library's, so a custom
+  `data-anim` / `data-parallax` / `data-speed-full` system is captured as a spec that section
+  agents can declare instead of inventing.
+- **`assembly.md` §4b — capture determinism.** A `<video>` frame and a marquee phase are
+  functions of elapsed time, so two page loads never agree on them. Freezing them identically on
+  both sides took one section from 0.943 to 0.018.
+- **`assembly.md` §5b — five ways a gate lies**, with what to gate instead. Two of the fixes make
+  the suite *stricter*; the height gate found a real defect that a 0.0000 pixel diff had hidden.
+- First-party JS and CSS are now mirrored at every profile, as reference material. An unminified
+  stylesheet gives you authored declarations instead of computed values.
+
+Two rules earned the hard way, both now written down:
+
+> **Copy the behaviour, not the intent.** A resize handler that reverts text splits and does not
+> rebuild them looks like a bug. Reproduce it anyway — "fixing" it added up to 63px of section
+> height and failed three passing sections.
+
+> **`IntersectionObserver` may be entirely absent.** On a GSAP site the reveals are ScrollTrigger
+> timelines. Inferring IO from behaviour makes every reveal fire at visibly the wrong moment.
+
+## Layout
+
+| path | contents |
+|---|---|
+| `SKILL.md` | the pipeline: steps 0→5, flags, profiles, gates, hard rules |
+| `references/` | 12 files, one per phase — read at the point of use, not up front |
+| `scripts/` | installer payloads evaluated in the page, plus the asset mirror and the differ |
+
+## A note on what it produces
+
+A faithful clone reproduces third-party text, marks and imagery byte-for-byte. Everything
+mirrored is listed in `.clone/PROVENANCE.md` with its source URL and hash. Whether to keep or
+replace that material before publishing anywhere is the operator's decision, and the skill says
+so rather than deciding for you.
+
+MIT.
