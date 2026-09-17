@@ -77,9 +77,9 @@ Resume: `run.json` lives in the **clone project root**, which in scaffold mode i
 
 ## Step 0b — is the target a site or an app?
 
-Everything below measures **a landing page and its interaction states**. If the target is an application — behind a login,
+Everything below measures **the requested website pages and their interaction states**. If the target is an application — behind a login,
 inside an iframe (Shopify App Bridge, embedded dashboards), or valuable for its **multi-step
-flows** rather than its landing page — that shape is wrong and this pipeline quietly produces a
+flows** rather than individual page states — page-level measurement alone produces a
 shallow answer. **Read `references/flows.md` instead**, and return here for the visual layer only
 if the visual layer is genuinely the deliverable.
 

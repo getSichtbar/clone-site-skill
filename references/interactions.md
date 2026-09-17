@@ -1,6 +1,6 @@
 # Interaction discovery and verification
 
-Read during original-page measurement, before section briefs, and again at verification. This is the behavioral contract for landing pages; application workflows still use `flows.md`. A build, static screenshot, or presence of keyframes does not prove this contract.
+Read during original-page measurement, before section briefs, and again at verification. This is the behavioral contract for the requested website pages, including multi-page sites; application workflows also use `flows.md` for authentication and multi-step flows. A build, static screenshot, or presence of keyframes does not prove this contract.
 
 ## Discover before implementing
 
