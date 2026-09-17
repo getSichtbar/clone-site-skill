@@ -18,15 +18,15 @@ always overrides the profile: `--cheap --max-parallel 8` runs 8. Record the reso
 | Segmentation `KEEP` | 3.6 (fewer, bigger sections) | 3.0 | 2.6 (finer cuts) |
 | Hover / focus / active | skipped | CTAs and cards only | every interactive element |
 | Motion capture | CSSOM only, static render | measured for revealed sections | full `getAnimations()` + scroll-linked fits |
-| Overlays / modals | stubbed closed | measured when `open: true` | each opened via its trigger and measured |
-| Carousels | first slide, static | CSS `scroll-snap` track, all slides | full behaviour incl. autoplay timing |
+| Overlays / modals | closed approximation; omissions reported | every discovered overlay opened and measured | + complete open/dismiss/reopen sequences |
+| Carousels | first-slide approximation; omissions reported | source behavior retained; unverified scenarios reported | full behavior, autoplay/reset and both wrap boundaries |
 | Fluid sweep widths | 7 † | 7 † | 7 † |
 | Pages | 1 | `--pages` | `--pages`, `--depth 2` |
 | `budget.repairMax` (`K`) | **1** | **3** | **4** |
 | `budget.sectionAttemptsMax` | 1 | 2 | 3 |
 | Full-page diff | no | yes, primary width | yes, every gated width |
 | `cdp:lighthouse_audit` | no | no | yes, both sides |
-| Asset mirror | images + fonts | + svg, posters, sprites | + video, `srcset` variants, favicons, `og:` images |
+| Asset mirror | images + fonts + first-party JS/CSS | + svg, posters, sprites | + video, `srcset` variants, favicons, `og:` images |
 | Typical cost | ~0.25× | 1× | ~2.5× |
 
 Explicit `--viewport` flags **replace** the profile's viewport set, they do not append. The first one is the
@@ -42,6 +42,12 @@ leaves exactly two interior samples. Cut fewer than seven and every fluid token 
 relative to what it protects: seven `resize_page` + `measure('resize')` pairs, no captures, no agents. `cheap` gets
 its ~0.25× from viewports, captures, hover depth, motion depth, `K`, and the full-page diff — not from here.
 
+## Profile selection and fidelity scope
+
+If no profile was explicitly requested, promote the default to `thorough` after discovering looping/autoplay carousels, scroll-linked state, or coordinated animated components. Preserve explicit overrides, record the selection reason in `run.json.notes`, and announce it without requiring another approval. Apply newly selected capture defaults before section briefs; don't rerun unaffected completed measurements.
+
+Profiles control measurement cost, not whether an omitted behavior may be called verified. Record discovered behavior and omissions at every profile using `interactions.md`. A static or limited preview is a valid explicit scope, but never silently substitute a snap track for the source's carousel. Distinguish `--static` (output technology) from a user instruction to omit animation.
+
 ## Where the tokens actually go
 
 Measured shape of a 12-section, one-page `standard` run (~600–900k tokens total):
@@ -56,7 +62,7 @@ Measured shape of a 12-section, one-page `standard` run (~600–900k tokens tota
 | Route discovery, mirroring, assembly | ~3% | mostly `Bash`, cheap |
 
 The section fan-out is the bill. Everything in this file exists to keep that number honest: dedup before you
-schedule, verify per wave so a systemic error costs one edit instead of N repairs, and never re-measure.
+schedule, verify per wave so a systemic error costs one edit instead of N repairs, and reuse measurements except where a recorded gap requires missing/stale evidence.
 
 ## `filePath` discipline — a hard rule, not a nicety
 
@@ -112,6 +118,7 @@ downstream tolerates a synonym.
   "assets": { "manifest":".clone/assets.json","provenance":".clone/PROVENANCE.md","count":"n","bytes":"n",
               "failed":[{ "url":"s","status":"n","why":"s" }] },
   "motion": ".clone/motion.json", "responsive": ".clone/responsive.json",
+  "interactions": ".clone/interactions.json",
   "pagesManifest": ".clone/pages.json?", "componentsManifest": ".clone/components.json?",
   "sections": [{
     "id":"s","pageId":"s","order":"n","wave":"n","role":"s","label":"s","selector":"s","extraSelectors":["s"],
@@ -125,7 +132,9 @@ downstream tolerates a synonym.
                "geometryPass":"n","geometryWorstPx":"n","textFidelity":"n","hardcodedColors":"n",
                "arbitraryValues":"n","consoleErrors":"n","verdict":"pass|warn|fail" } }],
   "requests": { "drained":"n","applied":[{ "kind":"s","name":"s","from":"s" }],"rejected":[{ "kind":"s","name":"s","why":"s" }] },
-  "verify": { "lastRunAt":"s", "failing":["s"], "history":[{ "iter":"n","diffMean":"n" }],
+  "verify": { "outcome":"pending|verified|incomplete|scoped",
+              "interactionCoverage":{"verified":"n","total":"n","unresolved":["s"]},
+              "lastRunAt":"s", "failing":["s"], "history":[{ "iter":"n","diffMean":"n" }],
               "overall":{ "diffMean":"n","diffWorst":"n","gatesPassed":"n","gatesTotal":"n","consoleErrors":"n",
                           "http404":"n","tokenDrift":"n","docHeightDelta":"n","overflowBreakpoints":["n"] } },
   "notes": ["s"]
@@ -183,9 +192,9 @@ Phase order — **this table's row order is the executed order**, matching SKILL
 | `segment` | `sections.json` (+ `components.json` when multi-page) | `stats.kept` inside the sanity bounds |
 | `sections` | one file per section, `report.md`, `requests.json` | no section left `running` |
 | `assemble` | wired page, successful build | build exit 0 |
-| `verify` | `VERIFY.md`, `sections[].gates`, `verify.overall` | every gate has a measured value |
+| `verify` | `VERIFY.md`, `sections[].gates`, `verify.overall`, `interactions.json` | visual and behavioral gates have measured results or explicit unresolved status |
 | `repair` | edited files, re-measured gates | loop exited (success, budget, or plateau) |
-| `done` | `CLONE-REPORT.md`, `UNRESOLVED.md` if needed | report written |
+| `done` | `CLONE-REPORT.md`, `UNRESOLVED.md` if needed | report written; `verify.outcome` explicitly distinguishes fidelity from execution completion |
 
 `motion` is the one phase that straddles another: its at-load passes are the first thing that touches the page,
 before `prewarm` scrolls anything, and its scroll/state passes run after. The checkpoint records **completion**, so
@@ -299,3 +308,5 @@ be resumed in parallel mode and vice versa.
 
 Capability limits — what this skill cannot reproduce well, and what to do instead — are in
 `references/troubleshooting.md`. Surface them in `CLONE-REPORT.md` rather than burning budget against them.
+
+`phase: "done"` means execution stopped, not fidelity passed. Use `verify.outcome` for the delivery verdict. On older runs without this field, treat the outcome as unverified until inspecting gates and interactions. A resumed user request on an incomplete run restarts at verification/repair, retaining captures and implemented sections.

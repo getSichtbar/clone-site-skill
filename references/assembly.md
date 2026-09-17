@@ -267,12 +267,17 @@ Static, cheap, and invisible to a pixel diff — which is exactly why it needs i
 | Keyframes present | every `motion.json.cssom.keyframes[].name` used by a shipped section exists in the clone's CSSOM | 100% |
 | Durations / easings | per `bySection.entrance[]`: clone duration within **±20%**, same easing family | ≥ 90% of entries |
 | Reduced motion | `motion.json.reducedMotion.authored == true` → clone has a `@media (prefers-reduced-motion: reduce)` block over those selectors | present |
-| Evidence rule | an entry that reached a shipped file without `evidence` → drop the behaviour | 0 unsourced |
+| Evidence rule | recover missing source evidence; keep the discovered interaction unresolved until measured, never silently drop it | 0 required unsourced behaviors |
 | Breakpoints | `responsive.json.breakpointSystem.boundaries` vs the clone's authored media queries; `reorder[]` and `breakpointOnly[]` reproduced at the measured widths | same set, 100% |
 | `clamp()` fidelity | sample the clone at each `deltas[].fluid` fit's min and max width | within **1px** |
 
-`:active` and `prefers-reduced-motion` are not verifiable through this MCP. Check them by reading the emitted
-CSS and mark them `authored-not-verified` in the report.
+When the available browser cannot emulate a state, mark it `authored-not-verified`; when it can, test it. Keep accessibility enhancements separate from source parity. Tool limitations are unresolved evidence, never a passed comparison.
+
+### 5.5b Behavioral parity
+
+Read `references/interactions.md` and compare each recorded sequence on the original and clone, including intermediate motion and exit/reset states. Run `scripts/check-interactions.mjs` against `.clone/interactions.json`; it validates evidence coverage, not visual truth. Inspect the actual comparison artifacts. No required interaction may remain merely implemented, untested, or unresolved when claiming fidelity.
+
+Header menus must be opened to validate their centering, backdrop and pointer path. A carousel must cross both wrap boundaries, and autoplay must be observed after interaction. A static resting-state diff and an error-free build cannot substitute for these checks. Keep visual checkpoints aligned before attributing failures to animation phase.
 
 ### 5.6 `VERIFY.md`
 
@@ -342,8 +347,8 @@ K    = run.json.budget.repairMax           # set per profile in references/scali
 Amax = run.json.budget.sectionAttemptsMax  # same source
 iter = run.json.budget.repairUsed
 loop:
-  failing = sections where gates.verdict == "fail"
-  if failing empty:                        break   # success
+  failing = sections where gates.verdict == "fail" OR assigned required interactions are not verified
+  if failing empty:                        break   # then evaluate all global + behavioral gates
   if iter >= K:                            break   # budget exhausted
   if iter >= 1 and (prevDiffMean - diffMean) < 0.005
      and no gate flipped to pass:          break   # plateau — stop burning tokens
@@ -368,7 +373,7 @@ passes (breakpoint boundary). One edit fixes 20 sections; 20 agents fix it 20 in
 
 Plateau is measured on `verify.overall.diffMean` across iterations and recorded in `verify.history[]`: an
 absolute improvement below **0.005** with no gate flipping to pass means the remaining error is not the kind
-another agent turn removes. Stop there even if `iter < K`.
+another pixel-focused agent turn removes. Missing behavior still needs its own measurement/implementation work; do not infer behavioral completion from visual plateau. Stop there even if `iter < K`.
 
 When a section will not converge — `attempts == Amax`, or an iteration that improved its own mean diff by less
 than 0.005 — stop. Set `state: "failed"`, keep the best version on disk, write its row into `UNRESOLVED.md`,
@@ -377,13 +382,18 @@ move on. A clone at
 
 ## 8. `.clone/CLONE-REPORT.md`
 
-Write once, at the end, from `run.json` — never from memory.
+Write once, at the end, from `run.json` and the current interaction ledger — never from memory.
+
+Use `verify.outcome: verified` only if all required visual and behavioral gates pass. Use `incomplete` for failed or missing required checks even if the run ends at its budget; use `scoped` only for an explicitly limited user deliverable whose requested checks pass. Record verified/total interactions and unresolved IDs in `verify.interactionCoverage`. An explicit exclusion must cite the user scope instruction. If incomplete, say so in the first sentence of the final answer, with the most material gaps; do not hide that status only in an ignored report file.
 
 ```md
 # Clone report — <title> (<finalUrl>)
+Outcome: **incomplete** — required behavior and visual checks remain unresolved.
+Interactions: **9/11 verified** · unresolved: `nav-backdrop`, `carousel-reverse-wrap`.
 Run `<runId>` · captured `<capturedAt>` · profile `<profile>` · widths 1440, 390 · stack <mode/framework/css>
 
 ## Fidelity
+Behavioral evidence: `.clone/interactions.json` and its linked source/clone comparisons.
 diffMean **0.024** · worst **0.058** · gates **21/23** · console errors **0** · 404s **0** · token drift **0**
 · docHeight Δ **1.8%** · overflow offenders **0** at 360/390/768/1024/1280/1440/1920
 
@@ -408,7 +418,7 @@ diffMean **0.024** · worst **0.058** · gates **21/23** · console errors **0**
 
 ## Manual follow-ups
 1. `components/sections/Testimonials.tsx` — card gap 40 vs measured 32 at ≥1024. One-line fix.
-2. Re-run `--thorough` for the two overlay designs stubbed closed on this profile.
+2. Capture and reproduce the unresolved navigation backdrop and reverse carousel wrap, then rerun their original/clone sequences. These gaps keep this delivery incomplete regardless of profile.
 
 ## Note
 The mirror reproduces third-party text, marks, and imagery byte-for-byte; swapping or keeping them before you

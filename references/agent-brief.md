@@ -21,7 +21,7 @@ has any `scrollLinked` entry. Wave composition and the ownership map: `reference
 ## 1. `spec.json` — the contract, filled in (hero, `01-hero`)
 
 Every value came out of `.clone/sections.json`, `foundation.json`, `motion.json`, `responsive.json`, `assets.json`.
-Nothing is estimated: if you could not measure it, it is absent, not guessed. Width-keyed maps use the integer width
+Nothing is estimated: if you could not measure it, the value is absent, not guessed. The discovered behavior remains in the interaction ledger as unresolved; it is not deleted from scope. Width-keyed maps use the integer width
 as a string — never `desktop`/`mobile`.
 
 ```jsonc
@@ -51,6 +51,7 @@ as a string — never `desktop`/`mobile`.
     "ctaPrimary": { "token": "--text-base", "weight": 550, "color": "--color-accent-contrast", "background": "--color-accent",
                     "padding": "12px 22px", "radius": "--radius-full", "shadow": "--shadow-sm" },
     "ctaSecondary": { "token": "--text-base", "weight": 500, "color": "--color-ink", "background": "transparent", "padding": "12px 18px", "radius": "--radius-full", "border": "1px solid --color-border-subtle" } },
+  "interactions": { "ledger": "/abs/project/.clone/interactions.json", "ids": ["hero-card-cycle"] },
   "probes": [
     { "name": "root",    "selector": "#hero",          "box": { "x": 0,   "y": 72,  "w": 1440, "h": 812 } },
     { "name": "eyebrow", "selector": "#hero .eyebrow", "box": { "x": 144, "y": 184, "w": 232,  "h": 18 } },
@@ -115,7 +116,8 @@ as a string — never `desktop`/`mobile`.
 | `typography.*.fluid` | `foundation.json.type.fluid`, `responsive.json.bySection[].fluid` | a hard-coded 72px heading that never shrinks |
 | `tokensAllowed` | `foundation.json` values, filtered to what this section actually paints | reaching for a token that does not exist, or hardcoding a hex |
 | `assets` | `assets.json` rows whose `usedBy[]` contains this section id; `spec.assets[].ref` **is** `assets.json[].ref` (the public path markup writes), never `assets.json[].local` (staging-relative, `img/hero.avif`, which would ship as a broken relative src) | re-downloading, renaming, emoji substitution, a src that 404s on every route but `/` |
-| `motion`, `responsive` | `motion.json.bySection[<id>]` / `responsive.json.bySection[<id>]` verbatim, `evidence` included | invented animation. An entry with no `evidence` is deleted before the brief is written |
+| `motion`, `responsive` | `motion.json.bySection[<id>]` / `responsive.json.bySection[<id>]` verbatim, `evidence` included | invented animation. Missing evidence is an orchestrator measurement request and an unresolved ledger entry, never permission to omit the behavior |
+| `interactions` | absolute ledger path plus IDs for this section; attach source contracts and scenarios from `references/interactions.md` | working first slide but missing loop, reset, backdrop, or intermediate transition |
 | `dependencies.allowed` | what the detected stack already installs | `npm i` attempts, phantom imports |
 | `captures` | the filenames actually written by `references/sectioning.md` §7 | an agent reading a path that does not exist and proceeding blind |
 | `repeat`, `carousel`, `pinned`, `forms` | `sections.json` plus the audit in `references/sectioning.md` §4 | twelve hand-written cards; a pinned track split into four sections; a bare `<input>` where the original had `appearance:none` |
@@ -434,3 +436,7 @@ WRITE report.md, MAX 400 WORDS: ## Built / ## Done-check / ## Deviations / ## Re
      SPEC's pinned width-keyed maps and capture filenames. `pinned` (§5) is likewise new: it carries the trap-(c)
      findings from references/sectioning.md §4, which have no home in the §D2 section schema. Gate numbers are never
      duplicated into spec.json — per §H they live only in references/assembly.md, reaching the agent via {{GATE_TABLE}}. -->
+
+## Interaction handoff
+
+Implement each assigned interaction contract, including exit/reset and responsive rules. Report `implemented` or `unresolved` per ID with changed files and remaining gaps. Do not mark it `verified`: the orchestrator must compare the original and clone using the recorded sequences. Source-proven numbers do not by themselves prove the implementation behaves correctly.

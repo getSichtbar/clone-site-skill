@@ -14,6 +14,8 @@ Motion lives in the other cells. Four routes reach them; none is sufficient alon
 | `initScript` hooks | WAAPI calls, `IntersectionObserver` construction, every `animation*`/`transition*` event that already fired | nothing library-internal that avoids all three |
 | real pointer (`cdp:hover`, `cdp:press_key`) | resolved `:hover` / `:focus-visible` values, mid-flight `CSSTransition` keyframes | `:active`, `:disabled`, `:checked`, anything not currently visible |
 
+For interaction discovery and start/midpoint/end, reset, and wrap-boundary comparison, also read [interactions.md](interactions.md). Extraction is input to implementation; captured action lists are not evidence that the clone implements them.
+
 ## M0 — the hooks, installed before the page's own scripts
 
 `initScript` takes a **script**, not a function, so this is a bare IIFE, passed as
@@ -379,8 +381,7 @@ Then split the merged truth per section, keyed by `sectionId`, using each sectio
 `.clone/sections.json` to decide ownership. `bySection.<id>` carries `entrance`, `scrollLinked`, `hover`,
 `loops`, `reducedMotion`, `gaps` — numbers, never "make it feel smooth". **`evidence` is required on every
 `bySection` entry**, as `"<raw file>#<json path>"` (the scroll payload emits its own, e.g.
-`motion-scroll.json#samples[].els[3].ch.ty`); an entry without evidence is deleted, not shipped. That is how
-the review pass checks a section agent's work without re-measuring.
+`motion-scroll.json#samples[].els[3].ch.ty`); an entry without evidence must not be presented as measured. Retain the discovered behavior as unresolved in `interactions.json` and recover its evidence before claiming fidelity; do not silently delete it. This lets review distinguish missing measurement from invented implementation.
 
 ## M10 — rebuild recipes: when plain CSS is enough, and when it is not
 
@@ -444,7 +445,7 @@ when `matchMedia('(prefers-reduced-motion: reduce)').matches` is belt-and-braces
 Structural checks, run before you claim motion parity. Numeric tolerances for every gate live in
 `references/assembly.md`; do not restate or invent them here.
 
-1. Every `bySection` entry has non-empty `evidence`; entries without it are deleted, not shipped.
+1. Every implemented `bySection` entry has non-empty `evidence`; missing evidence remains an unresolved interaction until recovered, not silently removed from scope.
 2. Every keyframe name the clone uses exists with identical step offsets, and every `@property` block a
    keyframe depends on was emitted.
 3. `transitions().canonicalByRole` re-measured on the clone matches the original's map, role for role.

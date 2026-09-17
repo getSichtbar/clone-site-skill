@@ -11,7 +11,7 @@ never for deriving a colour, a gap, or a font size.
 ## Install
 
 ```bash
-git clone https://github.com/aatmik-panse/clone-site-skill ~/.claude/skills/clone-site
+git clone https://github.com/getSichtbar/clone-site-skill ~/.claude/skills/clone-site
 ```
 
 Then in Claude Code:
@@ -116,3 +116,16 @@ replace that material before publishing anywhere is the operator's decision, and
 so rather than deciding for you.
 
 MIT.
+
+## Interaction fidelity
+
+Unspecified profiles promote to `thorough` when the original has looping/autoplay carousels, scroll-linked state, or coordinated animations. Explicit scope and profile choices remain respected. Every discovered in-scope interaction needs an original/clone comparison covering applicable transitions, resets, and boundaries; the ledger and workflow are in [references/interactions.md](references/interactions.md).
+
+`phase: done` ends a run. `verify.outcome` separately reports `verified`, `incomplete`, or explicitly `scoped` delivery. A build or screenshot pass alone cannot verify behavior. Check recorded coverage with:
+
+```bash
+node scripts/check-interactions.mjs /path/to/clone/.clone/interactions.json
+node --test scripts/check-interactions.test.mjs
+```
+
+The coverage helper checks evidence records and comparison assertions. It does not replace observing the original or reviewing the clone.

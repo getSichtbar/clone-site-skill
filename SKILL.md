@@ -6,7 +6,7 @@ argument-hint: "<url> [--static] [--pages N] [--sections ids] [--max-parallel N]
 license: MIT
 metadata:
   author: aatmik
-  version: "1.2.0"
+  version: "1.3.0"
   category: frontend
 allowed-tools:
   - Task
@@ -52,6 +52,8 @@ Resolve the target: a bare domain gets `https://`; a URL the user pasted mid-sen
 | `--resume` | auto | Continue from `.clone/run.json`. Auto-implied when it exists and `phase != "done"`. |
 | `--refresh` | off | Re-measure the live page before continuing a resumed run. |
 
+Before building, discover interactions using [references/interactions.md](references/interactions.md). If no profile was explicitly requested, promote `standard` to `thorough` when discovery finds looping/autoplay carousels, scroll-linked state, or coordinated animated components. Record the reason and announce the change; preserve explicit profile/viewport choices. Profile shortcuts never count as verified behavior.
+
 `--profile` sets defaults an explicit flag then overrides (`--cheap --max-parallel 8` → 8). Dark-mode extraction is not a flag: it runs whenever `color.darkMode` shows signal.
 
 | Dimension | `cheap` | `standard` (default) | `thorough` |
@@ -61,7 +63,7 @@ Resolve the target: a bare domain gets `https://`; a URL the user pasted mid-sen
 | Segmentation `KEEP` | 3.6 (fewer, bigger) | 3.0 | 2.6 (finer cuts) |
 | Hover / focus / active | skipped | CTAs + cards | every interactive element |
 | Motion | static end-state only | keyframes + revealed sections | full `getAnimations()` + scroll sweep |
-| Overlays / carousels | stubbed closed / slide 1 | measured if `open:true` / snap track | each opened / full behaviour |
+| Overlays / carousels | scoped static approximation, report omissions | open each overlay; preserve discovered behavior | each opened / full behavior and boundary sequences |
 | Asset mirror | images + fonts + **first-party js/css** | + svg, posters, sprites | + video, `srcset` variants, favicons, `og:` |
 | Repair budget `K` | 1 | 3 | 4 |
 | Full-page diff · `lighthouse_audit` | no · no | yes · no | per breakpoint · both sides |
@@ -69,13 +71,13 @@ Resolve the target: a bare domain gets `https://`; a URL the user pasted mid-sen
 
 This table is a **copy for immediate branching**; `references/scaling.md` owns it and carries the rows not listed here (`sectionAttemptsMax`, pages/depth, and why the 7-width fluid sweep is not a profile dial). Any change lands there first.
 
-Resume: `run.json` lives in the **clone project root**, which in scaffold mode is `--out`, not your cwd — so look it up in this order and stop at the first hit: `./.clone/run.json`, `<--out>/.clone/run.json`, `./<domain>-clone/.clone/run.json`. On a hit, `cd` to that root and take every path from its `stack`; on more than one, use the newest `updatedAt` and say which you picked. Skipping this lookup silently starts a fresh run and re-measures the whole original — the one cost resume exists to avoid. Then: if `phase != "done"`, skip every `done` phase and **never re-measure the original** — measurement is the expensive half. Reset `running` sections to `pending`. Write `run.json` atomically (`.tmp` → `mv`) on every state transition, not just wave boundaries.
+Resume: `run.json` lives in the **clone project root**, which in scaffold mode is `--out`, not your cwd — so look it up in this order and stop at the first hit: `./.clone/run.json`, `<--out>/.clone/run.json`, `./<domain>-clone/.clone/run.json`. On a hit, `cd` to that root and take every path from its `stack`; on more than one, use the newest `updatedAt` and say which you picked. Skipping this lookup silently starts a fresh run and re-measures the whole original — the one cost resume exists to avoid. Then: if `phase != "done"`, skip every `done` phase and **reuse existing original measurements** — measurement is the expensive half. Re-measure only missing/stale evidence needed for a recorded gap; do not rerun the whole source capture. If `phase == "done"` but `verify.outcome == "incomplete"`, a user request to continue resumes at verification/repair using recorded gaps; do not restart measurement unless the source changed or a gap needs it. Reset `running` sections to `pending`. Write `run.json` atomically (`.tmp` → `mv`) on every state transition, not just wave boundaries.
 
 **Before you fan out, and any time the page is large: read `references/scaling.md`** — profiles, `filePath` discipline, `run.json` checkpointing, and `--resume`.
 
 ## Step 0b — is the target a site or an app?
 
-Everything below measures **one page at rest**. If the target is an application — behind a login,
+Everything below measures **a landing page and its interaction states**. If the target is an application — behind a login,
 inside an iframe (Shopify App Bridge, embedded dashboards), or valuable for its **multi-step
 flows** rather than its landing page — that shape is wrong and this pipeline quietly produces a
 shallow answer. **Read `references/flows.md` instead**, and return here for the visual layer only
@@ -124,6 +126,8 @@ Skipping the prewarm costs a whole repair iteration and produces sections frozen
 
 **Step 2d — sweep the breakpoints. Read `references/responsive.md` now**: the viewport plan, the probe set, and the `clamp()` solver that turns samples into authored CSS.
 
+Before leaving measurement, write `.clone/interactions.json` with discovery coverage, behavior contracts, and planned comparison scenarios, including unresolved observations. Read [references/interactions.md](references/interactions.md) for the ledger and required boundary sequences.
+
 Exit gate: the three merged JSONs this step produces — `foundation.json`, `motion.json`, `responsive.json` — validate against their `schema` field (`sections.json` is written and gated at step 4a); `fonts.faces[]` is non-empty when the page uses webfonts; `patterns.breakpoints[]` is populated; `cssom.blocked[]` is either empty or backfilled from the network; and `fingerprint[]` exists (it is the numeric target verification diffs against).
 
 ## Step 3 — build the foundation
@@ -157,6 +161,8 @@ wave n+2    verify → repair waves (≤ K)
 
 `references/sectioning.md` §10 owns the wave plan and the ownership map; the block above is the summary you dispatch from. Edit §10 first, then mirror it here.
 
+Each section brief includes the interaction ledger path, its assigned IDs, and source contracts. A missing contract is an orchestrator measurement task, not permission to invent or silently omit motion. Agents report implementation status; only the orchestrator marks browser comparisons verified.
+
 Dispatch rules, all load-bearing:
 
 - **One `Task` call per section, all of them in a SINGLE assistant message.** Sequential messages serialize the team and buy nothing.
@@ -188,9 +194,10 @@ Order is fixed and cheap-first: static sweep (grep) → drain `requests.json` �
 | Console errors · HTTP ≥ 400 | 0 · 0 | ≥ 1 · ≥ 1 |
 | Horizontal overflow at 360/390/768/1024/1280/1440/1920 | 0 offenders | ≥ 1 |
 | Full-page diff mean · \|Δ docHeight\| | ≤ 0.030 · ≤ 4% | above |
+| Behavioral parity | discovery complete; every in-scope interaction verified against original and clone | any unresolved/missing comparison |
 | Build + typecheck — the commands in `run.json.stack` (per-stack table: `references/stacks.md` §7; `--static` has neither, so its gate is the console · 404 · overflow rows above against the served output) | exit 0 | anything else |
 
-Repair loop, bounded: iterate only failing sections, `K` iterations max per the profile (1/3/4), `sectionAttemptsMax` per section. Fix systemic causes in the foundation yourself before dispatching any repair agent — a wrong base unit fails every section at once. Exit early on plateau (mean diff improves < 0.005 between iterations). Whatever is still failing goes into `.clone/UNRESOLVED.md` with its numbers; never claim a gate you did not measure. Then write `.clone/VERIFY.md` (worst-first) and `.clone/CLONE-REPORT.md` (gates, deviations, known limits), and set `phase:"done"`.
+Repair loop, bounded: iterate only failing sections, `K` iterations max per the profile (1/3/4), `sectionAttemptsMax` per section. Fix systemic causes in the foundation yourself before dispatching any repair agent — a wrong base unit fails every section at once. Exit early on plateau (mean diff improves < 0.005 between iterations). Whatever is still failing goes into `.clone/UNRESOLVED.md` with its numbers; never claim a gate you did not measure. Then write `.clone/VERIFY.md` (worst-first) and `.clone/CLONE-REPORT.md` (gates, deviations, known limits). Run the interaction coverage gate from [references/interactions.md](references/interactions.md). Set `phase:"done"` only to close the run; separately set `verify.outcome` to `verified` only when required visual and behavioral gates pass, otherwise `incomplete` (or `scoped` for an explicitly limited deliverable with all requested gates passed). Lead the user-facing handoff with any incomplete status and its specific gaps. Budget exhaustion or a pixel-diff plateau cannot waive an interaction failure.
 
 The mirror reproduces third-party text, marks, and imagery byte-for-byte; swapping or keeping them before you publish is your call — every mirrored file is listed in `.clone/PROVENANCE.md`.
 
@@ -217,6 +224,7 @@ Everything lives under `.clone/` in the clone project root.
 |---|---|
 | `run.json` | Phase, flags, stack path map, per-section state, gates, budget. The only file `--resume` reads. |
 | `foundation.json` · `sections.json` · `motion.json` · `responsive.json` | The four merged measurement truths for the entry page. |
+| `interactions.json` | Discovery coverage, source behavior contracts, implementation status, and original/clone comparison evidence. |
 | `assets.json` · `PROVENANCE.md` | Mirror manifest; every remote file with source URL, content-type, bytes, sha256. |
 | `raw/` | Every `filePath` dump (`foundation-1440.json`, `vp-390.json`, `motion-cssom.json`, …). Scratch. |
 | `css/` · `assets/` · `screenshots/` | Recovered cross-origin CSS; byte-exact mirror staging; page-level `orig-w<width>-full.{webp,png}` / `clone-w<width>-full.{webp,png}` plus `orig-w<width>-tile-<NN>.webp` for very tall pages. |
