@@ -5,7 +5,8 @@ measured clone and `.clone/CLONE-REPORT.md`. Every number here is a gate. Never 
 `cdp:` = `mcp__plugin_chrome-devtools-mcp_chrome-devtools__` throughout.
 
 Preconditions: `run.json.phase == "assemble"`; every section is `done`, `failed`, or `skipped`; the original's
-per-section captures exist (`orig-w<width>.webp` for agents, `orig-w<width>.png` for the diff — §4).
+per-section captures exist (`orig-w<width>.webp` for agents, `orig-w<width>.png` for the diff — §4). A
+`run.json.scope.kind == "single-section"` run has exactly one section and applies this file only to that scope.
 
 ## Review order
 
@@ -79,6 +80,11 @@ Conflicts, resolved by you and never by write-order:
    failure to a section by the error's file path and repair it **before** any screenshotting — a broken build
    makes every downstream gate meaningless.
 
+For `single-section`, render only the selected component in the preview page with a wrapper derived from
+`run.json.scope.context`; do not import or stub unselected sections. The wrapper may reproduce measured ancestor
+background/padding/positioning that changes the section's pixels, but never copies ancestor text, controls, or
+navigation. Add `data-section="<id>"` to the selected root so the normal capture/probe commands remain valid.
+
 ### 3.1 Assembly defects you will actually hit
 
 These are what break a fan-out build. Every one is a one-line orchestrator edit — fix it yourself, do not
@@ -112,10 +118,11 @@ cdp:evaluate_script { function: "() => window.__clone.sections.all()",          
                       filePath: ".clone/raw/sections-clone-<w>.json" }
 ```
 
-Then per section, anchor it and shoot both formats back to back from the same viewport state:
+Then per section, anchor it and shoot both formats back to back from the same viewport state. Set
+`captureHeight = run.scope.kind === "single-section" ? run.scope.captureBox[<w>].h : section.box[<w>].h`:
 
 ```
-cdp:resize_page     { width: <w>, height: <min(section.box.h, 4000)> }
+cdp:resize_page     { width: <w>, height: <min(captureHeight, 4000)> }
 cdp:evaluate_script { function: "() => { document.querySelector('[data-section=\"<id>\"], #<id>')
                         .scrollIntoView({block:'start',behavior:'instant'}); return {y: scrollY}; }" }
 cdp:take_screenshot { format: "webp", quality: 88, filePath: ".clone/sections/<id>/clone-w<w>.webp" }
@@ -142,7 +149,8 @@ cdp:take_screenshot { fullPage: true, format: "png",               filePath: ".c
 ```
 
 The original's counterpart (`orig-w<w>-full.webp` / `.png`) was shot in step 4 by `references/sectioning.md` §7.
-Under `--profile cheap` neither pair is taken and the full-page gate is reported as `not-run`, never as passed.
+Under `--profile cheap` or `--section` neither pair is taken and the full-page gate is reported as `not-applicable`,
+never as passed.
 
 ## 4b. Capture determinism — do this or the diff measures the clock
 
@@ -214,6 +222,12 @@ Re-run `scripts/extract-sections.js` on the clone (§4) and join `probes[]` **by
 the clone's DOM has different `nth-of-type` paths, and `name` (`root`, `heading`, `body`, `cta`, `media`,
 `eyebrow`, `repeat-item`) is the closed vocabulary that makes the join legal.
 
+For `single-section`, compare positions relative to the selected root rather than the original document. The original
+scope manifest supplies `section.probesRelative` and `scope.geometryOrigin`; subtract the clone preview root's box from
+each clone probe before joining. The root probe is therefore `(0,0)`, and an otherwise faithful selected section that
+originally began 4,000px down the source page does not fail because the preview begins at the top. Width, height,
+typography, colors, padding, radius, shadow, and every nested relative position remain gated exactly as below.
+
 | Property | Tolerance | Property | Tolerance |
 |---|---|---|---|
 | `box.y` (section-relative top) | `max(4px, 1.5% of section height)` | `font.letterSpacing` | ≤ **0.01em** |
@@ -249,6 +263,12 @@ repeat-item  box.w        365.33px         352px            -13.33px  4px      F
 | Provenance complete | every mirrored file in the project asset dir appears in `.clone/PROVENANCE.md` with url + content-type + bytes + sha256 | **100%** | — |
 | Fingerprint diff | §5.4 | ≥ **0.90** of rows in tolerance | — |
 | a11y floor (`thorough`) | `cdp:lighthouse_audit {mode:"navigation", device:"desktop"}`, both sides | clone ≥ original − 2 | — |
+
+Scoped-run exceptions: font files/local-font-CDN, console, HTTP, token drift inside the generated component/preview,
+overflow, build, fingerprint rows inside the selected root, and every §5.1 section gate still apply. Full-page diff,
+document height, and out-of-scope interaction coverage are `not-applicable`, not passed. The scoped preview's request
+log must still contain no third-party runtime font or asset fetches except an embed explicitly documented in the
+selected spec.
 
 ### 5.4 Fingerprint diff
 
@@ -384,7 +404,7 @@ move on. A clone at
 
 Write once, at the end, from `run.json` and the current interaction ledger — never from memory.
 
-Use `verify.outcome: verified` only if all required visual and behavioral gates pass. Use `incomplete` for failed or missing required checks even if the run ends at its budget; use `scoped` only for an explicitly limited user deliverable whose requested checks pass. Record verified/total interactions and unresolved IDs in `verify.interactionCoverage`. An explicit exclusion must cite the user scope instruction. If incomplete, say so in the first sentence of the final answer, with the most material gaps; do not hide that status only in an ignored report file.
+Use `verify.outcome: verified` only if all required visual and behavioral gates pass for a full page. Use `incomplete` for failed or missing required checks even if the run ends at its budget; use `scoped` only for an explicitly limited `--section` deliverable whose section gates pass. Record verified/total interactions and unresolved IDs in `verify.interactionCoverage`; for scoped runs, list out-of-scope page interactions and cross-boundary dependencies in `SELECTION.md`, not in the interaction-ledger total. An explicit exclusion must cite the user scope instruction. If incomplete, say so in the first sentence of the final answer, with the most material gaps; do not hide that status only in an ignored report file.
 
 ```md
 # Clone report — <title> (<finalUrl>)

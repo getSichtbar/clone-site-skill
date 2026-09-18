@@ -27,6 +27,51 @@ call it without `filePath`. Re-install after **any** `navigate_page` (including 
 `prewarm()` is `async`; `evaluate_script` awaits it. `docHeight` under 1.5 viewports on a marketing page means
 reveals are still gating content — fix that via `references/troubleshooting.md` before trusting a single box.
 
+### Single-section selection
+
+`--section` resolves a real DOM boundary before assets are mirrored. It is intentionally separate from `--sections`,
+which is a page-build filter applied only after the complete page manifest exists. A scoped run has one manifest entry,
+one output component, and no unselected placeholders.
+
+1. For `css:<selector>`, call `scope()` directly. It rejects invalid selectors, hidden/zero-area targets, and every
+   selector that resolves to anything other than one element:
+
+   ```
+   cdp:evaluate_script {function:"() => window.__clone.sections.scope(\"#pricing\",{idOverride:\"03-pricing\"})",
+                        filePath:".clone/raw/section-scope-1440.json"}
+   ```
+
+2. For `id:`, `role:`, or a bare label/slug, call `all()` once at the primary width and resolve against its `id`,
+   `role`, and normalized `label`. The match must be exactly one. On zero/multiple matches write
+   `.clone/SELECTION.md` with each `{id,label,role,selector}` candidate and ask for an explicit `css:` or `id:` value.
+   Never choose by document order.
+3. Re-call `scope()` using that resolved selector and preserve the source id/label/role with `idOverride`,
+   `labelOverride`, and `roleOverride`. Its `scope.context[]` records painted/padded/positioned ancestors and
+   `scope.dependencies[]` records overlay triggers/panels that cross the root boundary; copy both to
+   `.clone/SELECTION.md` and `run.json.scope`. Context is evidence for the preview wrapper, not a license to copy
+   ancestor content. Cross-boundary dependencies are excluded from scoped interaction parity. Preserve the resolved
+   entry's `extraSelectors[]` in the `scope()` call: sliver siblings belong to the selected component and are never
+   dropped merely because their root is not nested under the main selector.
+4. Then call `prewarm(<resolved selector>,{extraSelectors:<resolved extra selectors>})`. This scrolls every selected
+   member into view, promotes/decodes their descendant images, and returns `scoped:true`. Use full-page `prewarm()`
+   only when selector resolution required the full manifest or a section-level reveal will not fire from targeted
+   scrolling.
+
+For a direct `css:` target, this targeted call replaces the full-page prewarm in the table above. For `id:`, `role:`,
+or label/slug selection, the temporary manifest needs the normal full prewarm first; do not infer a full-page manifest
+from a cold DOM.
+
+Scoped root selection after the original full prewarm is still valid, but it is wasted work. Do it before the network
+census so only selected runtime assets are shipped. The normal foundation/responsive passes remain necessary because a
+section inherits page tokens and media/container rules.
+
+For a scoped entry with `extraSelectors[]`, build `content.md` by extracting each selector in visual document order and
+retaining the source selector on every row. Capture the same visual union with
+`capture(<selector>,{extraSelectors:<entry.extraSelectors>,hideFixed:true})`; it aligns to the top-most member and
+returns a union `needsHeight`. Persist that union as `run.json.scope.captureBox[width]`; it, not the primary root's
+`section.box[width].h`, is the required capture height on both original and clone. This keeps sliver content,
+screenshots, and asset attribution in one component contract.
+
 ## 2. The boundary score
 
 `all()` walks the content root's children, scores each candidate on six independent signals, descends into
@@ -223,8 +268,8 @@ phase, when the browser is pointed at `localhost`, which is exactly the "never r
 pipeline is built on. Two `take_screenshot` calls from one identical viewport/scroll state, every section, every
 gated width. The clone side does the same in `references/assembly.md` §4.
 
-**Page level, once per gated width, before the per-section loop** (skip under `--profile cheap`, where the
-full-page diff gate does not run). Same both-formats rule, and the same reason it cannot wait:
+**Page level, once per gated width, before the per-section loop** (skip under `--profile cheap` or `--section`, where
+the full-page diff gate does not run). Same both-formats rule, and the same reason it cannot wait:
 
 ```
 cdp:take_screenshot {fullPage:true, format:"webp", quality:88, filePath:".clone/screenshots/orig-w1440-full.webp"}
@@ -257,6 +302,11 @@ Width order: capture every section at the primary width, then switch viewport **
 each to `orig-w390.webp` + `orig-w390.png` → restore desktop explicitly with `cdp:emulate {viewport:"1440x900x1"}` plus
 `cdp:resize_page {width:1440,height:900}`. Never interleave widths: viewport changes are the expensive call.
 
+For a scoped run, call `scope()` again at each width with the recorded source selector, primary id override, and
+recorded `extraSelectors`. Each selector must resolve once at every gated width. A missing narrow-only root is a real responsive finding: preserve
+the measured `display:none` rule if that is what the origin does, otherwise stop and record `scope-selector-missing`
+in `UNRESOLVED.md`; do not substitute a sibling based on label text.
+
 ## 8. Merging widths into `sections.json`
 
 `all()` returns one width's truth, keyed by integer width as a string. The orchestrator merges:
@@ -270,6 +320,10 @@ each to `orig-w390.webp` + `orig-w390.png` → restore desktop explicitly with `
    the accepted pass, and the §4 trap corrections.
 4. Write `.clone/sections.json`; extra pages to `.clone/pages/<pageId>/sections.json`, identical schema. Never `Read`
    the merged file whole afterwards — `Grep`/`jq` the field.
+
+In a scoped run, this merge contains exactly one primary entry. Secondary widths re-run `scope()` against the persisted
+selector rather than `all()`; merge their width-keyed maps directly into that entry. This avoids an unrelated section
+claiming the same label after a responsive reorder.
 
 Ids are stable for the run's life: `<NN>-<slug>`, zero-padded document order at the primary width, deduped with a
 numeric suffix. Never renumber after `run.json` is written, including on `--resume`.
@@ -346,6 +400,10 @@ proceed. Do not gate. Budgets and profiles: `references/scaling.md`.
 | 2…n | `--max-parallel` agents (default 6, clamp `[1,10]`) | body sections in document order |
 | n+1 | orchestrator | drain `requests.json`, wire the page file, build |
 | n+2… | orchestrator + repair agents | verify per `references/assembly.md` |
+
+`--section` replaces this plan with: wave 0 (orchestrator: selected assets, tokens, minimal preview shell,
+`_EXAMPLE`) → wave 1 (one `clone-section` agent or one in-thread implementation) → wave 2 (orchestrator: wire,
+build, scoped verification/repair). It never schedules shared chrome unless the selected root itself has that role.
 
 Every above-the-fold section (`box.<primary>.y < 2·VH`) goes in the first body wave, so a systemic error surfaces at
 wave 2 instead of wave 6. Never schedule two sections with the same `contentHash` or `structureHash` in one wave —

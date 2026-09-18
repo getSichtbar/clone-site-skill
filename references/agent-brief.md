@@ -125,6 +125,27 @@ as a string — never `desktop`/`mobile`.
 
 Keep a spec under ~200 lines. Longer means the section is too big — re-cut it (`references/sectioning.md` §3).
 
+### Scoped component brief
+
+For `--section`, there is exactly one spec and it includes this additional measured boundary. The agent still writes
+only its component; the orchestrator owns the minimal preview page and applies the context wrapper.
+
+```jsonc
+"scope": {
+  "kind": "single-section",
+  "sourceSelector": "#pricing",
+  "selectionArtifact": ".clone/SELECTION.md",
+  "context": [{ "selector": "main", "backgroundColor": "rgb(8, 12, 20)", "padding": "0px", "position": "static" }],
+  "dependencies": [{ "kind": "overlay", "panelSelector": "#contact-dialog", "triggerSelector": "#pricing .contact", "panelInside": false, "triggerInside": true }],
+  "captureBox": { "1440": { "x": 0, "y": 2400, "w": 1440, "h": 860 } },
+  "rule": "Build only the selected root. Context supplies an inherited surface or geometry for the preview; do not copy its text, navigation, controls, or sibling markup. A cross-boundary interaction is excluded unless its trigger and target both live in this root."
+}
+```
+
+Append to the prompt's definition of done: `[ ] The component renders one root carrying data-section=<spec.id>.
+[ ] Ancestor context is not copied into this component; the preview wrapper owns it. [ ] Every interaction in
+spec.interactions.ids has both trigger and affected target inside this root, otherwise report it as a scoped dependency.`
+
 ## 2. `content.md` — verbatim text in DOM order
 
 From `window.__clone.sections.content("<selector>")`: one line per row, `key` straight from the payload (`item[<i>].`

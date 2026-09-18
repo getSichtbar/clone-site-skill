@@ -9,8 +9,10 @@
  *
  * INVOKE — one-liners as `function`, always with filePath (a 20-section manifest is 40–150 KB):
  *   () => window.__clone.sections.prewarm()                   -> .clone/raw/prewarm-<w>.json
+ *   () => window.__clone.sections.prewarm("#features",{extraSelectors:[".feature-band"]}) -> targeted prewarm for --section
  *   () => window.__clone.sections.all()                       -> .clone/raw/sections-<w>.json
  *   () => window.__clone.sections.all({keep:3.6,sliver:0.22,pageId:"pricing"})   (retune / label)
+ *   () => window.__clone.sections.scope("#features",{idOverride:"03-features"}) -> one-section manifest
  *   () => window.__clone.sections.skeletons()                 -> .clone/raw/skeletons-<w>.json
  *   () => window.__clone.sections.content("#features")        -> rows for content.md
  *   () => window.__clone.sections.capture("#features",{hideFixed:true})
@@ -142,6 +144,15 @@
     if (idx === total - 1 && links >= 4) return 'footer';
     return 'section';
   };
+  const roleOfScoped = (el) => {
+    const t = el.tagName.toLowerCase(), r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    if (t === 'header') return 'header';
+    if (t === 'footer') return 'footer';
+    if (safe(() => el.matches('[role="dialog"],[aria-modal="true"],dialog'), false, 'scopeRole')) return 'overlay';
+    if (cs.position === 'fixed' && (+cs.zIndex || 0) >= 40 && r.height < innerHeight * 0.5) return r.top <= 8 ? 'header' : 'sticky-cta';
+    if (t === 'nav' && !el.closest('header,footer')) return 'nav';
+    return 'section';
+  };
   const slugify = (s) => (s || 'section').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 28) || 'section';
   const tagsOf = (el) => [...el.querySelectorAll('*')].slice(0, CAP.tags).map((n) => n.tagName);
   /* ---------- one segmentation pass at the current viewport ---------- */
@@ -194,9 +205,9 @@
     const w = String(R(innerWidth)), seen = {}, els = [];
     const sections = res.groups.map((g, i) => {
       const el = g.el, r = el.getBoundingClientRect(), cs = getComputedStyle(el), h = headingIn(el);
-      const role = roleOf(el, i, res.groups.length);
-      const label = norm((h && h.innerText) || el.getAttribute('aria-label') || (NAME_HINT.exec(nameOf(el)) || [])[0] || role).slice(0, 60) || role;
-      let id = String(i).padStart(2, '0') + '-' + slugify(label);
+      const role = (opts && opts.roleOverride) || (opts && opts.scoped ? roleOfScoped(el) : roleOf(el, i, res.groups.length));
+      const label = (opts && opts.labelOverride) || norm((h && h.innerText) || el.getAttribute('aria-label') || (NAME_HINT.exec(nameOf(el)) || [])[0] || role).slice(0, 60) || role;
+      let id = (opts && opts.idOverride) || (String(i).padStart(2, '0') + '-' + slugify(label));
       if (seen[id]) id = id.slice(0, 26) + '-' + (++seen[id]); else seen[id] = 1;
       const rep = detectRepeat(el), probes = [probeEl(el, 'root')];
       for (const ps of PROBE_SEL) { const n = el.querySelector(ps[1]); if (n) probes.push(probeEl(n, ps[0])); }
@@ -209,7 +220,7 @@
       layout[w] = { display: cs.display, flexDirection: cs.flexDirection, gridTemplateColumns: T(cs.gridTemplateColumns, 200),
         gap: cs.gap, padding: [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft].join(' '),
         maxWidth: cs.maxWidth, minHeight: cs.minHeight, overflow: cs.overflow };
-      const chrome = role === 'header' || role === 'footer' || role === 'sticky-cta';
+      const chrome = !(opts && opts.scoped) && (role === 'header' || role === 'footer' || role === 'sticky-cta');
       els.push({ id: id, el: el });
       return { id: id, order: i, role: role, label: label, score: g.score,
         selector: cssPath(el), extraSelectors: g.extra.map(cssPath),
@@ -256,6 +267,68 @@
     }
     const out = emit(res, KEEP, opts);
     out.stats.retunes = retunes;
+    return out;
+  };
+  const scopeContext = (el) => {
+    const out = [];
+    for (let cur = el.parentElement, depth = 1; cur && cur !== document.documentElement && depth <= 6; cur = cur.parentElement, depth++) {
+      const cs = getComputedStyle(cur);
+      const visual = cs.backgroundColor !== 'rgba(0, 0, 0, 0)' || cs.backgroundImage !== 'none' ||
+        cs.paddingTop !== '0px' || cs.paddingRight !== '0px' || cs.paddingBottom !== '0px' || cs.paddingLeft !== '0px' ||
+        cs.overflow !== 'visible' || cs.position !== 'static';
+      if (visual) out.push({ selector: cssPath(cur), tag: cur.tagName.toLowerCase(), depth: depth,
+        backgroundColor: cs.backgroundColor, backgroundImage: T(cs.backgroundImage), padding: [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft].join(' '),
+        maxWidth: cs.maxWidth, position: cs.position, overflow: cs.overflow });
+    }
+    return out;
+  };
+  const scope = (selector, opts) => {
+    opts = opts || {};
+    let matches;
+    try { matches = [...document.querySelectorAll(selector)].filter((el) => {
+      const cs = getComputedStyle(el), r = el.getBoundingClientRect();
+      return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width >= 1 && r.height >= 1;
+    }); } catch (e) {
+      return { error: 'invalid selector', selector: selector, detail: (e && e.name) || 'SyntaxError' };
+    }
+    if (matches.length !== 1) return { error: 'selector must resolve to exactly one visible element', selector: selector,
+      matches: matches.slice(0, 8).map((el) => cssPath(el)), count: matches.length };
+    const el = matches[0], extras = [];
+    for (const extraSelector of opts.extraSelectors || []) {
+      let extraMatches;
+      try { extraMatches = [...document.querySelectorAll(extraSelector)].filter((node) => {
+        const cs = getComputedStyle(node), r = node.getBoundingClientRect();
+        return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width >= 1 && r.height >= 1;
+      }); } catch (e) {
+        return { error: 'invalid extra selector', selector: extraSelector, detail: (e && e.name) || 'SyntaxError' };
+      }
+      if (extraMatches.length !== 1) return { error: 'extra selector must resolve to exactly one visible element', selector: extraSelector,
+        matches: extraMatches.slice(0, 8).map((node) => cssPath(node)), count: extraMatches.length };
+      const extra = extraMatches[0];
+      if (extra !== el && !el.contains(extra) && !extra.contains(el)) extras.push(extra);
+    }
+    syncRoot();
+    const out = emit({ contentRoot: el.parentElement || document.body, groups: [{ el: el, score: 0, extra: extras }], candidates: 1, merged: 0 }, 0, Object.assign({}, opts, { scoped: true }));
+    const localOverlays = [], dependencies = [];
+    for (const overlay of out.overlays) {
+      const panel = safe(() => document.querySelector(overlay.selector), null, 'scopeOverlay');
+      const trigger = overlay.triggerSelector ? safe(() => document.querySelector(overlay.triggerSelector), null, 'scopeTrigger') : null;
+      const panelInside = !!panel && el.contains(panel), triggerInside = !!trigger && el.contains(trigger);
+      if (panelInside && trigger && triggerInside) localOverlays.push(overlay);
+      else if (panelInside || triggerInside) dependencies.push({ kind: 'overlay', panelSelector: overlay.selector,
+        triggerSelector: overlay.triggerSelector, panelInside: panelInside, triggerInside: triggerInside });
+    }
+    out.overlays = localOverlays;
+    const section = out.sections[0], width = String(R(innerWidth)), origin = section.box[width];
+    const members = [el, ...extras].map((node) => node.getBoundingClientRect());
+    const left = Math.min(...members.map((r) => r.left)), right = Math.max(...members.map((r) => r.right));
+    const captureBox = abs({ left: left, top: Math.min(...members.map((r) => r.top)), right: right,
+      bottom: Math.max(...members.map((r) => r.bottom)), width: right - left,
+      height: Math.max(...members.map((r) => r.bottom)) - Math.min(...members.map((r) => r.top)) });
+    out.scope = { mode: 'single-section', selector: selector, context: scopeContext(el), dependencies: dependencies,
+      geometryOrigin: origin, captureBox: { [width]: captureBox }, captureSelectors: [selector, ...extras.map(cssPath)] };
+    section.probesRelative = section.probes.map((probe) => Object.assign({}, probe, { box: Object.assign({}, probe.box,
+      { x: probe.box.x - origin.x, y: probe.box.y - origin.y }) }));
     return out;
   };
   const skeletons = () => {
@@ -319,13 +392,19 @@
     opts = opts || {};
     const el = document.querySelector(sel);
     if (!el) return { ok: false, why: 'selector not found', selector: sel };
+    const roots = [el];
+    for (const extraSelector of opts.extraSelectors || []) {
+      const extra = document.querySelector(extraSelector);
+      if (!extra) return { ok: false, why: 'extra selector not found', selector: extraSelector };
+      if (extra !== el && !el.contains(extra) && !extra.contains(el)) roots.push(extra);
+    }
     restore();
     const hidden = [];
     if (opts.hideFixed !== false) {                                    /* sticky chrome would smear every shot */
       for (const c of document.querySelectorAll('body *')) {
         const cs = getComputedStyle(c), cr = c.getBoundingClientRect();
         if ((cs.position !== 'fixed' && cs.position !== 'sticky') || cr.width < 8 || cr.height < 8) continue;
-        if (c === el || c.contains(el) || el.contains(c)) continue;
+        if (roots.some((root) => c === root || c.contains(root) || root.contains(c))) continue;
         hidden.push({ el: c, vis: c.style.visibility }); c.style.visibility = 'hidden';
       }
     }
@@ -336,12 +415,18 @@
     document.head.appendChild(st);
     NS.state.capture = { hidden: hidden, selector: sel };
     syncRoot();
-    SR.scrollTo({ top: Math.max(0, SR.scrollTop + el.getBoundingClientRect().top - (opts.offset || 0)), behavior: 'instant' });
-    const a = el.getBoundingClientRect();
-    return { ok: true, selector: sel, box: abs(a), rectTop: R(a.top), rectHeight: R(a.height),
-      viewport: { w: R(innerWidth), h: R(innerHeight) }, needsHeight: Math.ceil(a.height),
-      clipped: a.height > innerHeight + 1, tall: a.height > (opts.maxHeight || 4000), hiddenCount: hidden.length,
-      scrollTop: R(SR.scrollTop), atTop: Math.abs(a.top - (opts.offset || 0)) <= 2 };
+    const before = roots.map((root) => root.getBoundingClientRect());
+    const top = Math.min(...before.map((r) => r.top));
+    SR.scrollTo({ top: Math.max(0, SR.scrollTop + top - (opts.offset || 0)), behavior: 'instant' });
+    const rects = roots.map((root) => root.getBoundingClientRect());
+    const left = Math.min(...rects.map((r) => r.left)), right = Math.max(...rects.map((r) => r.right));
+    const union = { left: left, top: Math.min(...rects.map((r) => r.top)), right: right,
+      bottom: Math.max(...rects.map((r) => r.bottom)), width: right - left,
+      height: Math.max(...rects.map((r) => r.bottom)) - Math.min(...rects.map((r) => r.top)) };
+    return { ok: true, selector: sel, extraSelectors: roots.slice(1).map(cssPath), box: abs(union), rectTop: R(union.top), rectHeight: R(union.height),
+      viewport: { w: R(innerWidth), h: R(innerHeight) }, needsHeight: Math.ceil(union.height),
+      clipped: union.height > innerHeight + 1, tall: union.height > (opts.maxHeight || 4000), hiddenCount: hidden.length,
+      scrollTop: R(SR.scrollTop), atTop: Math.abs(union.top - (opts.offset || 0)) <= 2 };
   };
   const probe = (sel, name) => {
     const el = document.querySelector(sel);
@@ -349,30 +434,60 @@
     syncRoot();
     return probeEl(el, name || 'root');
   };
-  const prewarm = async () => {
+  const prewarm = async (selector, opts) => {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     syncRoot();
-    const step = Math.round(innerHeight * 0.8);
-    let last = -1, guard = 0;
-    while (guard++ < 120) {
-      const next = Math.min(SR.scrollTop + step, SR.scrollHeight - innerHeight);
-      SR.scrollTo({ top: next, behavior: 'instant' });
-      await sleep(180);
-      if (next === last) break;
-      last = next;
+    opts = opts || {};
+    const selectors = selector ? [selector, ...(opts.extraSelectors || [])] : [];
+    const targets = [];
+    for (const targetSelector of selectors) {
+      const target = document.querySelector(targetSelector);
+      if (!target) return { ok: false, why: 'selector not found', selector: targetSelector };
+      if (!targets.includes(target)) targets.push(target);
     }
-    for (const i of document.querySelectorAll('img[loading="lazy"]')) i.loading = 'eager';
-    await Promise.allSettled([...document.images].map((i) => (i.decode ? i.decode().catch(() => {}) : null)));
+    let guard = 0;
+    if (targets.length) {
+      for (const target of targets) {
+        target.scrollIntoView({ block: 'start', behavior: 'instant' });
+        await sleep(180);
+        let last = -1;
+        while (guard++ < 120) {
+          const r = target.getBoundingClientRect();
+          const top = Math.max(0, SR.scrollTop + r.top - (SRdoc ? 0 : SRrect.top));
+          const bottom = Math.min(Math.max(top, SR.scrollHeight - innerHeight), top + r.height - innerHeight);
+          const next = last < 0 ? top : Math.min(bottom, SR.scrollTop + Math.round(innerHeight * 0.8));
+          SR.scrollTo({ top: next, behavior: 'instant' });
+          await sleep(180);
+          if (next === last || next >= bottom) break;
+          last = next;
+        }
+      }
+    } else {
+      const step = Math.round(innerHeight * 0.8);
+      let last = -1;
+      while (guard++ < 120) {
+        const next = Math.min(SR.scrollTop + step, SR.scrollHeight - innerHeight);
+        SR.scrollTo({ top: next, behavior: 'instant' });
+        await sleep(180);
+        if (next === last) break;
+        last = next;
+      }
+    }
+    const images = targets.length ? [...new Set(targets.flatMap((target) => [
+      ...(target.matches('img') ? [target] : []), ...target.querySelectorAll('img')
+    ]))] : [...document.images];
+    for (const i of images.filter((img) => img.loading === 'lazy')) i.loading = 'eager';
+    await Promise.allSettled(images.map((i) => (i.decode ? i.decode().catch(() => {}) : null)));
     SR.scrollTo({ top: 0, behavior: 'instant' });
     await sleep(400);
-    return { ok: true, docHeight: R(SR.scrollHeight), passes: guard, images: document.images.length,
-      imagesDecoded: [...document.images].filter((i) => i.complete && i.naturalWidth > 0).length,
+    return { ok: true, scoped: targets.length > 0, selector: targets.length ? selector : null, extraSelectors: selectors.slice(1), docHeight: R(SR.scrollHeight), passes: guard, images: images.length,
+      imagesDecoded: images.filter((i) => i.complete && i.naturalWidth > 0).length,
       fontsLoaded: safe(() => [...document.fonts].filter((f) => f.status === 'loaded').length, -1, 'fonts'),
       scrollRoot: SRdoc ? ':root' : cssPath(SR), warnings: warnings.slice() };
   };
-  NS.sections = { all: all, prewarm: prewarm, skeletons: skeletons, content: content,
+  NS.sections = { all: all, scope: scope, prewarm: prewarm, skeletons: skeletons, content: content,
     capture: capture, restore: restore, probe: probe, hash: hash };
   NS.util = Object.assign(NS.util || {}, { cssPath: cssPath, hash: hash, norm: norm, nlow: nlow, abs: abs, visible: vis });
-  return { ok: true, v: V, installed: ['sections.all', 'sections.prewarm', 'sections.skeletons', 'sections.content',
+  return { ok: true, v: V, installed: ['sections.all', 'sections.scope', 'sections.prewarm', 'sections.skeletons', 'sections.content',
     'sections.capture', 'sections.restore', 'sections.probe', 'util.cssPath', 'util.hash'] };
 }

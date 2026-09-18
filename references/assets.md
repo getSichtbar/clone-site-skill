@@ -2,18 +2,35 @@
 
 `cdp:` = `mcp__plugin_chrome-devtools-mcp_chrome-devtools__`.
 
-Policy: every asset the original serves is copied **byte-for-byte** into the clone. No re-encoding, no
-resizing, no "equivalent" stock image, no icon-font swapped for an SVG set. A mirrored file's sha256 must match
-the origin's, and anything that cannot be mirrored is named rather than silently replaced.
+Policy: every asset the original serves is copied **byte-for-byte** into a full-page clone. In `--section` mode,
+copy every asset required to render the selected subtree plus its resolved fonts and first-party CSS/JS reference
+material; unrelated page media is not shipped. No mirrored byte is re-encoded, resized, or replaced with stock
+imagery. A mirrored file's sha256 must match the origin's, and anything that cannot be mirrored is named rather
+than silently replaced.
 
-Two ordering rules decide whether this phase works. The **full prewarm scroll must already have run** — an
-unscrolled page never requested half its images, so they are simply absent from the log. And the byte fetch
-must follow the census **immediately**: Chrome evicts response bodies aggressively, and a census taken at
-minute 1 fetched at minute 10 returns `<Response body not available anymore>` for half the page.
+Two ordering rules decide whether this phase works. The **full-page prewarm** (page clone) or the selected-root
+**targeted prewarm** (`--section`) must already have run — otherwise lazy media is absent from the log. And the byte
+fetch must follow the census **immediately**: Chrome evicts response bodies aggressively, and a census taken at minute
+1 fetched at minute 10 returns `<Response body not available anymore>` for half the page.
 
 ## 1. Census — five sources, in this order
 
 No source alone is complete. Union them, dedupe by absolute URL.
+
+### Scoped census
+
+After `references/sectioning.md` resolves `run.json.scope.selector` and `run.json.sections[0].extraSelectors`, filter
+the shipping manifest to URLs evidenced by every selected member: descendant `img` / `picture` / `source` / `video` /
+`audio` / `svg use`, computed backgrounds and pseudos within them, and any response loaded while the targeted prewarm
+ran. Keep all font files that resolve for text inside the selected members. Keep first-party CSS/JS that contributes a selected declaration or motion evidence in
+`.clone/assets/{css,js}` as **reference material**, but do not expose unrelated scripts from that directory to the
+preview or generated component.
+
+Before filtering, preserve the source URL and the reason in each surviving `assets.json[].usedBy` row, for example
+`["03-pricing:img", "03-pricing:background"]`. A stylesheet or font needed through inheritance belongs in the
+manifest even if no `<img>` references it. Conversely, a network image from the whole-page visit is not evidence for
+the selected component just because it happened to be in the log. `scope.context[]` can identify an ancestor
+background that is required for a transparent/glass section preview; record that exception in `SELECTION.md`.
 
 | # | Source | Catches | Misses |
 |---|---|---|---|
@@ -38,8 +55,9 @@ Four calls. `resourceTypes` is a closed enum: `document`, `stylesheet`, `image`,
 
 Each line returns as `reqid=<n> <METHOD> <url> [<status>]`. Rules:
 
-- **Re-list after the prewarm scroll** (`references/sectioning.md`) — lazy images and below-fold backgrounds
-  only appear in the log once they are requested. Diff the two lists; the delta is real assets, not noise.
+- **Re-list after prewarming** (`references/sectioning.md`) — full-page for a page clone or targeted for
+  `--section`; lazy images and backgrounds only appear in the log once they are requested. Diff the two lists; the
+  delta is real assets, not noise.
 - `includePreservedRequests: true` merges the last **3** navigations. Use it after a consent-banner reload or
   an SPA route change; otherwise the log resets and the old `reqid`s are unusable.
 - Paginate with `pageIdx` on asset-heavy pages rather than raising `pageSize` past 300.

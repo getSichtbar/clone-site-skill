@@ -1,12 +1,12 @@
 ---
 name: clone-site
-description: Clones a website with high fidelity from its live source of truth. Use when the user says clone this site, copy this page, rebuild this landing page, recreate this design, make me a site like X, or pastes a URL and asks for the same thing in their stack. Drives Chrome DevTools MCP to measure computed styles, CSSOM, fonts, geometry, motion, and breakpoints, mirrors every asset byte-for-byte, recovers the motion system from the site's own bundle when it is hand-rolled, then builds it with a parallel team of section agents and verifies the result against the original.
+description: Clones a website or one selected live section with high fidelity from its source of truth. Use when the user says clone this site, copy this page, rebuild this landing page, recreate this design, clone just this section, rebuild the hero/pricing/features section, make me a site like X, or pastes a URL and asks for the same thing in their stack. Drives Chrome DevTools MCP to measure computed styles, CSSOM, fonts, geometry, motion, and breakpoints, mirrors required assets byte-for-byte, recovers the motion system from the site's own bundle when it is hand-rolled, then builds and verifies the selected scope against the original.
 user-invocable: true
-argument-hint: "<url> [--static] [--pages N] [--sections ids] [--max-parallel N] [--viewport WxH] [--profile cheap|standard|thorough] [--cheap] [--thorough] [--out DIR] [--depth N] [--resume] [--refresh]"
+argument-hint: "<url> [--static] [--section target | --sections ids] [--pages N] [--max-parallel N] [--viewport WxH] [--profile cheap|standard|thorough] [--cheap] [--thorough] [--out DIR] [--depth N] [--resume] [--refresh]"
 license: MIT
 metadata:
   author: aatmik
-  version: "1.3.0"
+  version: "1.4.0"
   category: frontend
 allowed-tools:
   - Task
@@ -44,13 +44,18 @@ Resolve the target: a bare domain gets `https://`; a URL the user pasted mid-sen
 | `--out DIR` | `./<domain>-clone` | Scaffold target. Ignored in adopt mode. |
 | `--pages N` | `1` | Routes to clone. `--pages 0` = route-discovery report only, no build. |
 | `--depth N` | `1` | Link-following hops during route discovery. |
-| `--sections LIST` | all | Build only these ids (`03-features`, ranges `0-5`, or `role:header`). Others → `state:"skipped"` plus a placeholder comment in the page file. |
+| `--section TARGET` | off | Clone exactly one section as an importable component plus a preview page. Accepts `css:<selector>`, `id:<NN-slug>`, `role:<header\|footer\|nav\|section\|sticky-cta>`, or a unique generated label/slug. It requires the default `--pages 1` and cannot combine with `--sections`. |
+| `--sections LIST` | all | Page-build subset only: build these ids (`03-features`, ranges `0-5`, or `role:header`). Others → `state:"skipped"` plus a placeholder comment in the page file. Use singular `--section` when the deliverable is only one section. |
 | `--max-parallel N` | `6` | Section agents per wave. Clamped to `[1,10]`; `1` = sequential in-thread. |
 | `--viewport WxH` | `1440x900` and `390x844` | Repeatable. Explicit flags **replace** the default pair. First is the primary width, authoritative for the manifest; every listed viewport is measured and gated. |
 | `--profile P` | `standard` | `cheap` \| `standard` \| `thorough`. |
 | `--cheap` / `--thorough` | — | Aliases for `--profile cheap` / `--profile thorough`. |
 | `--resume` | auto | Continue from `.clone/run.json`. Auto-implied when it exists and `phase != "done"`. |
 | `--refresh` | off | Re-measure the live page before continuing a resumed run. |
+
+`--section` is a true scope, not shorthand for `--sections 03-features`. Resolve it before asset mirroring. `css:` must resolve to exactly one visible element; `id:`, `role:`, and a bare label/slug resolve against one temporary primary-width manifest. A zero or multi-match result writes `.clone/SELECTION.md` with the candidates and asks the user for one target rather than cloning an arbitrary sibling. Persist `{requested, selector, id, label, role, context, dependencies}` in `run.json.scope`; on `--resume`, refuse to silently retarget when the selector no longer resolves to the recorded element.
+
+Scoped delivery contains only the selected component and a minimal preview shell. It does not mount unselected header/footer/CTA markup and does not write skipped-section placeholders. It may still retain global tokens, fonts, first-party CSS/JS reference material, and ancestor context required to render the section faithfully. Its final outcome is `scoped`, never page-wide `verified`.
 
 Before building, discover interactions using [references/interactions.md](references/interactions.md). If no profile was explicitly requested, promote `standard` to `thorough` when discovery finds looping/autoplay carousels, scroll-linked state, or coordinated animated components. Record the reason and announce the change; preserve explicit profile/viewport choices. Profile shortcuts never count as verified behavior.
 
@@ -116,6 +121,8 @@ Exit gate: `run.json` has `target.finalUrl`, `stack.mode` and the full path map,
 
 Skipping the prewarm costs a whole repair iteration and produces sections frozen at `opacity:0`. Draining the hooks after it produces motion data that describes the end state of every animation and the trigger of none. After **any** reload — including one `emulate` caused — re-`navigate_page {initScript: HOOKS}`, re-install all four payloads, re-prewarm, and record in `motion.json.warnings` anything the reload took before you drained it.
 
+**Single-section branch:** resolve `--section` immediately after the section-extractor install, before the network census and mirror. For `css:`, call `window.__clone.sections.scope(<selector>, {idOverride:<stable-id>})` and replace this table's full-page prewarm with `prewarm(<resolved selector>, {extraSelectors:<scope extras>})`, which triggers every selected member's lazy media/reveals. For every other target, run the normal prewarm plus a temporary `all()` manifest, resolve exactly one entry, then call `scope()` with its recorded selector/id/label/role/**extraSelectors**. Write the one-entry result to `.clone/sections.json` and `.clone/raw/section-scope-<width>.json`. Keep the normal foundation and responsive measurements because global tokens and breakpoints may affect this section, but skip full-page screenshots, cross-page route discovery, and unselected section captures.
+
 **Step 2a — capture motion. Read `references/motion.md` now** (you already read M0 before navigating): M1's pass table and the ordering rules that this table implements.
 
 **Step 2a-ii — recover the motion system from source. Read `references/motion-source.md`** whenever `libs()` names GSAP/ScrollTrigger/Lenis/SplitType/Barba/Locomotive and no builder manifest was found. Runtime introspection cannot see a `once:true` trigger that already fired, a timeline for a section still below the fold, or a threshold that lives in an `if (x > N)` branch — their bundle can. This is also where the declarative motion vocabulary (`extract-motion-attrs.js`) is harvested so section agents can *declare* motion instead of inventing it.
@@ -134,7 +141,7 @@ Exit gate: the three merged JSONs this step produces — `foundation.json`, `mot
 
 Mirror the bytes, then emit the tokens. Nothing downstream may reference a remote URL.
 
-1. **Step 3b — mirror the assets. Read `references/assets.md` now**: the census, the byte-exact download path, and the `PROVENANCE.md` format.
+1. **Step 3b — mirror the assets. Read `references/assets.md` now**: the census, the byte-exact download path, and the `PROVENANCE.md` format. In `--section` mode, mirror the selected subtree's runtime assets plus resolved fonts and any stylesheet/script source required to recover its styles or motion; do not ship unrelated page images/media.
 2. **Step 3 — build the foundation. Read `references/foundation.md` now**: it maps every `foundation.json` field to the tokens, `@font-face`, and layout shell you must emit.
 3. Emit yourself, or dispatch the single `clone-foundation` agent with absolute paths to `.clone/foundation.json` and `run.json.stack`. Either way the orchestrator owns the tokens file, the layout shell, the page file, `components/shared/**`, and `public/**` forever after.
 4. Write `components/sections/_EXAMPLE.tsx` (or `sections/_EXAMPLE.html`). Every section agent reads it as the house style; a bad example multiplies by N.
@@ -143,7 +150,7 @@ Exit gate: `run.json.foundation.tokenCount > 0`; every family in `foundation.fon
 
 ## Step 4 — cut the page up and fan out
 
-**Step 4a — cut the page into sections. Read `references/sectioning.md` now**: segmentation, per-section captures, dedup, and the wave plan.
+**Step 4a — cut the page into sections. Read `references/sectioning.md` now**: segmentation, per-section captures, dedup, and the wave plan. In `--section` mode this step uses the already-resolved one-entry manifest; do not segment the rest of the page again.
 
 **Step 4b — brief the team. Read `references/agent-brief.md` now**: the `spec.json` contract and the exact `PROMPT.md` each `clone-section` agent receives.
 
@@ -161,7 +168,7 @@ wave n+2    verify → repair waves (≤ K)
 
 `references/sectioning.md` §10 owns the wave plan and the ownership map; the block above is the summary you dispatch from. Edit §10 first, then mirror it here.
 
-Each section brief includes the interaction ledger path, its assigned IDs, and source contracts. A missing contract is an orchestrator measurement task, not permission to invent or silently omit motion. Agents report implementation status; only the orchestrator marks browser comparisons verified.
+Each section brief includes the interaction ledger path, its assigned IDs, and source contracts. A missing contract is an orchestrator measurement task, not permission to invent or silently omit motion. In `--section` mode discover only interactions whose trigger and affected target are inside the resolved root; record cross-boundary dependencies in `scope.dependencies` and `.clone/SELECTION.md` rather than quietly cloning navigation or overlays. Agents report implementation status; only the orchestrator marks browser comparisons verified.
 
 Dispatch rules, all load-bearing:
 
@@ -171,7 +178,7 @@ Dispatch rules, all load-bearing:
 - **One writer per file.** Each agent writes exactly one component file (two in `--static`: `sections/<id>.html` + `sections/<id>.css`) plus its own `report.md` and `requests.json`. A shared-chrome section's one file lives in `sharedDir` — one writer per *path*, never one directory per role. No agent gets an MCP tool, and `clone-section` agents get no `Bash` — the browser is a single serial resource and only you touch it.
 - Above-the-fold sections (`box.y < 2·VH`) go in wave 2 regardless of order, so systemic errors surface early. Never put two sections with the same `contentHash` in one wave.
 - Verify each wave while the next runs. A wrong container width caught at wave 2 is one edit to the tokens file instead of 20 agent repairs.
-- At >24 sections warn once ("consider `--sections` for the top 12 first") and proceed. Do not gate.
+- At >24 sections warn once ("consider `--sections` for the top 12 first") and proceed. Do not gate. `--section` has exactly one section, one component owner, and may run in-thread without a fan-out.
 - `--max-parallel 1`, or no `Task` availability: run the identical contracts in-thread, one section per turn. Same files, ~3× wall clock, `run.json` shape unchanged.
 
 Multi-page (`--pages > 1`): routes were already discovered in phase `discover`, right after step 1's navigation and before the prewarm (it needs only a loaded DOM plus `curl`), and written to `.clone/pages.json`; `--pages 0` stops there — before any measurement — with the report. Measure each extra route into `.clone/pages/<pageId>/` (`pageId` = `home` for the entry route, otherwise the slugified path), then dedup across pages by `contentHash` before any wave is scheduled — promote a shared section to `components/shared/**` once and let each page file render it. Decisions land in `.clone/components.json`. Skipping this turns 5 pages into 5× the cost instead of ~2.2×.
@@ -180,7 +187,7 @@ Multi-page (`--pages > 1`): routes were already discovered in phase `discover`, 
 
 **Step 5 — verify and close the gap. Read `references/assembly.md` now**: the review order, every gate with its number, and the bounded repair loop.
 
-Order is fixed and cheap-first: static sweep (grep) → drain `requests.json` → wire the page → build → capture the clone → diff → read only the failing sections' reports. Headline gates; the full table, every per-property tolerance, and the geometry probe matrix live in `references/assembly.md`.
+Order is fixed and cheap-first: static sweep (grep) → drain `requests.json` → wire the page → build → capture the clone → diff → read only the failing sections' reports. Headline gates; the full table, every per-property tolerance, and the geometry probe matrix live in `references/assembly.md`. A scoped run applies every section gate, build, local-font, console/HTTP, overflow, and in-scope interaction gate. Mark full-page diff, document-height, and unscoped interaction rows `not-applicable`; do not treat them as passes.
 
 | Gate | Pass | Fail |
 |---|---|---|
@@ -228,7 +235,8 @@ Everything lives under `.clone/` in the clone project root.
 | `assets.json` · `PROVENANCE.md` | Mirror manifest; every remote file with source URL, content-type, bytes, sha256. |
 | `raw/` | Every `filePath` dump (`foundation-1440.json`, `vp-390.json`, `motion-cssom.json`, …). Scratch. |
 | `css/` · `assets/` · `screenshots/` | Recovered cross-origin CSS; byte-exact mirror staging; page-level `orig-w<width>-full.{webp,png}` / `clone-w<width>-full.{webp,png}` plus `orig-w<width>-tile-<NN>.webp` for very tall pages. |
-| `sections/<id>/` | `spec.json`, `content.md`, `PROMPT.md`, orig+clone captures (`.webp` for agents, `.png` for `visual-diff.mjs`), `report.md`, `requests.json`, `diff.json`, `geometry.md`. |
+| `sections/<id>/` | `spec.json`, `content.md`, `PROMPT.md`, orig+clone captures (`.webp` for agents, `.png` for `visual-diff.mjs`), `report.md`, `requests.json`, `diff.json`, `geometry.md`. A `--section` run has exactly one. |
+| `SELECTION.md` | `--section` only: requested target, resolved source selector/id/label/role, ancestor context dependencies, and the intentional verification boundary. |
 | `pages/<pageId>/` | `--pages > 1` only; same schemas per extra route. |
 | `flows.json` · `flows/<flowId>/` · `FLOW-MAP.md` | App targets only (`references/flows.md`): per-flow state records, per-step captures, and the flow map. `profile/` holds a live session and is **always** gitignored. |
 | `VERIFY.md` · `CLONE-REPORT.md` · `UNRESOLVED.md` | Gate table; final report; whatever the repair budget could not close. |

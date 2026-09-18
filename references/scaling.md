@@ -101,8 +101,14 @@ downstream tolerates a synonym.
   "createdAt": "s", "updatedAt": "s", "cli": "s",   // cli = the literal invocation string
   "target": { "url":"s","origin":"s","finalUrl":"s","title":"s","userAgent":"s","capturedAt":"s",
               "bodyHash":"s" },                     // bodyHash detects a changed target on resume — definition below
-  "flags": { "static":"b","out":"s","pages":"n","depth":"n","sections":["s"]|null,"maxParallel":"n",
-             "viewports":[[1440,900]],"profile":"cheap|standard|thorough","resume":"b","refresh":"b" },
+  "flags": { "static":"b","out":"s","pages":"n","depth":"n","section":"s?","sections":["s"]|null,"maxParallel":"n",
+              "viewports":[[1440,900]],"profile":"cheap|standard|thorough","resume":"b","refresh":"b" },
+  "scope": { "kind":"page|single-section", "requested":"s?", "selector":"s?", "id":"s?", "label":"s?", "role":"s?",
+             "context":[{"selector":"s","tag":"s","depth":"n","backgroundColor":"s","backgroundImage":"s",
+                          "padding":"s","maxWidth":"s","position":"s","overflow":"s"}],
+             "dependencies":[{"kind":"overlay","panelSelector":"s","triggerSelector":"s?","panelInside":"b","triggerInside":"b"}],
+             "captureBox":{"1440":{"x":"n","y":"n","w":"n","h":"n"}},
+             "selection":".clone/SELECTION.md?" },
   "stack": { "mode":"adopt|scaffold|static","detectedFrom":"s?","framework":"s","router":"s?",
              "css":"s","typescript":"b","pkgManager":"s","root":"s",
              "sectionsDir":"s","sharedDir":"s","assetsDir":"s","pageFile":"s","tokensFile":"s" },
@@ -140,6 +146,14 @@ downstream tolerates a synonym.
   "notes": ["s"]
 }
 ```
+
+`scope.kind` is `page` normally and `single-section` only for `--section`. The latter requires exactly one
+`run.json.sections[]` entry; its selector/id/label/role are the source identity to re-check at every measured width and
+on resume. `context` is a measured ancestor-style dependency for the preview wrapper, never a request to clone
+ancestor content. `dependencies` captures overlay trigger/panel relationships that cross the root boundary and are
+excluded from scoped interaction parity. `captureBox` is the union of the primary root and any sliver siblings, used
+only for aligned screenshot height; root-relative probes still use `geometryOrigin`. `flags.section` and `flags.sections` are mutually exclusive, and `single-section` requires
+`pages == 1`.
 
 `target.bodyHash` is only useful if both runs compute it identically, so it is pinned to the run's own hasher:
 `util.hash(util.norm(document.body.innerText))` — the two-seed FNV-1a 64-bit hex from
@@ -211,7 +225,12 @@ rules: `references/motion.md` M1.
 1. Read `run.json`. Confirm `stack.root` still exists and still matches `stack.framework`.
 2. Skip every phase marked `done`. **Never re-navigate or re-measure** when `phases.segment == "done"` and the
    manifests exist — `segment` is the last phase that needs the original open, so a `done` there means every
-   measurement phase before it is also done, and measurement is the expensive half of the run.
+   measurement phase before it is also done, and measurement is the expensive half of the run. The one exception is
+   `scope.kind == "single-section"`: before building or verifying, navigate a clean page, install only
+   `extract-sections.js`, call `scope(run.scope.selector,{idOverride:run.scope.id,extraSelectors:run.sections[0].extraSelectors})`, and compare the one returned
+   selector/id/contentHash and `extraSelectors` to the recorded entry. This is an identity probe, not a fresh measurement pass. A missing
+   or changed root stops the resume and asks the user to use `--refresh` or choose a new section; it never silently
+   adopts a same-label sibling.
 3. Any section in `running` → reset to `pending`; delete its `outFile` if it is under 200 bytes or does not
    parse (its agent died mid-write).
 4. `failed` sections re-run only while `attempts < budget.sectionAttemptsMax`; otherwise they stay `failed` and

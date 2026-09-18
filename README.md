@@ -20,6 +20,12 @@ Then in Claude Code:
 /clone-site https://example.com --thorough
 ```
 
+To reproduce only one live section as an importable component and preview page:
+
+```bash
+/clone-site https://example.com --section 'css:#pricing'
+```
+
 Requires Chrome (the skill drives it over CDP) and Node 18+. If Chrome DevTools MCP cannot
 launch, `references/troubleshooting.md` covers the fallbacks.
 
@@ -31,8 +37,8 @@ measure → mirror assets → emit tokens → cut into sections → fan out agen
 
 - **Measures** the foundation: palette clustered by painted area, type scale by character
   weight, spacing base unit, breakpoints, container widths, the fluid `clamp()` rails
-- **Mirrors** every asset byte-for-byte with sha256 provenance — no remote URL survives into
-  the build, no font CDN request
+- **Mirrors** every required asset byte-for-byte with sha256 provenance — no remote URL survives into
+  the build, no font CDN request; scoped runs retain only the selected section's runtime assets
 - **Cuts** the page into sections on six independent boundary signals, dedupes by content and
   structure hash, then builds them with a parallel team of section agents that each own exactly
   one file
@@ -43,6 +49,24 @@ measure → mirror assets → emit tokens → cut into sections → fan out agen
 
 Output stacks: Next App Router + Tailwind v4 (default), Vite/Astro/SvelteKit/Nuxt/Remix by
 detection, or framework-agnostic `--static`.
+
+## Single-section mode
+
+`--section` is a scoped workflow, not a page clone with most sections omitted. It accepts one of:
+
+- `css:<selector>`, such as `css:#pricing` or `css:[data-section="hero"]`
+- `id:<NN-slug>`, such as `id:03-features`
+- `role:header`, `role:footer`, `role:nav`, `role:section`, or `role:sticky-cta`
+- A unique generated label or slug after the skill has produced a primary-width manifest
+
+The selector must identify exactly one visible live element. Ambiguous targets produce `.clone/SELECTION.md` with
+candidate ids and selectors instead of silently cloning the wrong sibling.
+
+The scoped run uses targeted prewarming, mirrors only the selected subtree's runtime assets plus necessary fonts and
+style/motion source material, and creates one component plus a minimal preview shell. Measured ancestor styles such
+as page background or padding are retained as preview context, but ancestor content, navigation, and page-level
+overlays are not copied. Verification runs all section-level gates and marks full-page-only checks as
+not applicable; a successful scoped run reports `verify.outcome: "scoped"`, not page-wide verified fidelity.
 
 ## What's new in 1.1
 
