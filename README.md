@@ -143,7 +143,7 @@ MIT.
 
 ## Interaction fidelity
 
-The default profile is `thorough`: inspect every in-scope interactive element and compare every section at phone, tablet, and desktop widths. Explicit scope and profile choices remain respected. Every discovered in-scope interaction needs an original/clone comparison covering applicable transitions, resets, and boundaries; the ledger and workflow are in [references/interactions.md](references/interactions.md).
+The default scope is the whole publicly reachable website, and the default profile is `thorough`: inspect every in-scope interactive element and compare every section at phone, tablet, and desktop widths. Explicit scope and profile choices remain respected. Every discovered in-scope interaction needs an original/clone comparison covering applicable transitions, resets, and boundaries; the ledger and workflow are in [references/interactions.md](references/interactions.md).
 
 `phase: done` ends a run. `verify.outcome` separately reports `verified`, `incomplete`, or explicitly `scoped` delivery. A build or screenshot pass alone cannot verify behavior. Check recorded coverage with:
 

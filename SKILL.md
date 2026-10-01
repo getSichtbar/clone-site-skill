@@ -2,7 +2,7 @@
 name: clone-site
 description: Clones a website or one selected live section with high fidelity from its source of truth. Use when the user says clone this site, copy this page, rebuild this landing page, recreate this design, clone just this section, rebuild the hero/pricing/features section, make me a site like X, or pastes a URL and asks for the same thing in their stack. Drives Chrome DevTools MCP to measure computed styles, CSSOM, fonts, geometry, motion, and breakpoints, mirrors required assets byte-for-byte, recovers the motion system from the site's own bundle when it is hand-rolled, then builds and verifies the selected scope against the original.
 user-invocable: true
-argument-hint: "<url> [--static] [--section target | --sections ids] [--pages N] [--max-parallel N] [--viewport WxH] [--profile cheap|standard|thorough] [--cheap] [--thorough] [--out DIR] [--depth N] [--resume] [--refresh]"
+argument-hint: "<url> [--static] [--section target | --sections ids] [--pages N|all] [--max-parallel N] [--viewport WxH] [--profile cheap|standard|thorough] [--cheap] [--thorough] [--out DIR] [--depth N] [--resume] [--refresh]"
 license: MIT
 metadata:
   author: aatmik
@@ -21,7 +21,7 @@ allowed-tools:
 
 Rebuilds a target URL in real code by reading the running page: computed styles, CSSOM rules and keyframes, `document.fonts`, `getBoundingClientRect`, `getAnimations()`, the network log. **The one rule that makes this work: every number you write into the clone was measured off the live page.** Screenshots are for human judgement and for giving each section agent a visual target — never for deriving a color, a gap, or a font size. Assets are mirrored byte-for-byte; text is copied verbatim.
 
-**Fidelity contract for a normal full-page clone:** Walk every section of the original and inventory every visible interactive element. Hover, focus, press, and activate each applicable control; observe entrance, exit, reset, timed, and scroll behavior before building. Repeat the same actions on the clone and compare them side by side. Capture and compare every section and the complete page at phone, tablet, and laptop/desktop widths, plus source breakpoint boundaries. Check typography, colors, spacing, imagery, sticky elements, and motion at matched states. Do not call a page verified while any in-scope element, section, or required viewport has not been compared. See [references/interactions.md](references/interactions.md) and [references/assembly.md](references/assembly.md) for evidence and gates. Explicit user scope and profile flags may narrow this contract; record every omitted check and report the result as incomplete rather than claiming parity.
+**Fidelity contract for a normal site clone:** Discover and clone every publicly reachable route in the site, including linked service pages, case studies and their detail pages, About, Careers and job pages, Contact, and shared navigation/footer. A pasted page URL is the entry point for site discovery, not an implicit one-page scope. Walk every section of every selected route and inventory every visible interactive element. Hover, focus, press, and activate each applicable control; observe entrance, exit, reset, timed, and scroll behavior before building. Repeat the same actions on the clone and compare them side by side. Capture and compare every section and the complete page at phone, tablet, and laptop/desktop widths, plus source breakpoint boundaries. Check typography, colors, spacing, imagery, sticky elements, and motion at matched states. Do not call a page verified while any in-scope element, section, or required viewport has not been compared. See [references/interactions.md](references/interactions.md) and [references/assembly.md](references/assembly.md) for evidence and gates. Explicit user scope and profile flags may narrow this contract; record every omitted check and report the result as incomplete rather than claiming parity.
 
 Below, `cdp:` = `mcp__plugin_chrome-devtools-mcp_chrome-devtools__`. Every `evaluate_script`, `take_screenshot`, and `take_snapshot` passes `filePath`; not optional, it is what keeps a 400 KB style dump out of your context.
 
@@ -44,9 +44,9 @@ Resolve the target: a bare domain gets `https://`; a URL the user pasted mid-sen
 |---|---|---|
 | `--static` | off | Emit framework-agnostic `index.html` + `styles.css` + `main.js` + `sections/*.html`; tokens become `:root{--…}`. Overrides stack detection. |
 | `--out DIR` | `./<domain>-clone` | Scaffold target. Ignored in adopt mode. |
-| `--pages N` | `1` | Routes to clone. `--pages 0` = route-discovery report only, no build. |
+| `--pages N|all` | `all` | Clone all publicly reachable HTML routes discovered from sitemap, navigation, footer, and same-origin links. An explicit `N` limits the count; `0` reports discovered routes without building. |
 | `--depth N` | `1` | Link-following hops during route discovery. |
-| `--section TARGET` | off | Clone exactly one section as an importable component plus a preview page. Accepts `css:<selector>`, `id:<NN-slug>`, `role:<header\|footer\|nav\|section\|sticky-cta>`, or a unique generated label/slug. It requires the default `--pages 1` and cannot combine with `--sections`. |
+| `--section TARGET` | off | Clone exactly one section as an importable component plus a preview page. Accepts `css:<selector>`, `id:<NN-slug>`, `role:<header\|footer\|nav\|section\|sticky-cta>`, or a unique generated label/slug. It implies one route and cannot combine with `--sections` or an explicit `--pages` value other than `1`. |
 | `--sections LIST` | all | Page-build subset only: build these ids (`03-features`, ranges `0-5`, or `role:header`). Others → `state:"skipped"` plus a placeholder comment in the page file. Use singular `--section` when the deliverable is only one section. |
 | `--max-parallel N` | `6` | Section agents per wave. Clamped to `[1,10]`; `1` = sequential in-thread. |
 | `--viewport WxH` | `1440x900`, `1024x768`, and `390x844` | Repeatable. Explicit flags **replace** the default set. First is the primary width, authoritative for the manifest; every listed viewport is measured and gated. |
@@ -183,7 +183,7 @@ Dispatch rules, all load-bearing:
 - At >24 sections warn once ("consider `--sections` for the top 12 first") and proceed. Do not gate. `--section` has exactly one section, one component owner, and may run in-thread without a fan-out.
 - `--max-parallel 1`, or no `Task` availability: run the identical contracts in-thread, one section per turn. Same files, ~3× wall clock, `run.json` shape unchanged.
 
-Multi-page (`--pages > 1`): routes were already discovered in phase `discover`, right after step 1's navigation and before the prewarm (it needs only a loaded DOM plus `curl`), and written to `.clone/pages.json`; `--pages 0` stops there — before any measurement — with the report. Measure each extra route into `.clone/pages/<pageId>/` (`pageId` = `home` for the entry route, otherwise the slugified path), then dedup across pages by `contentHash` before any wave is scheduled — promote a shared section to `components/shared/**` once and let each page file render it. Decisions land in `.clone/components.json`. Skipping this turns 5 pages into 5× the cost instead of ~2.2×.
+Multi-page (the default `--pages all`, or explicit `--pages N` with `N > 1`): routes were already discovered in phase `discover`, right after step 1's navigation and before the prewarm (it needs only a loaded DOM plus `curl`), and written to `.clone/pages.json`; `--pages 0` stops there — before any measurement — with the report. Measure each extra route into `.clone/pages/<pageId>/` (`pageId` = `home` for the entry route, otherwise the slugified path), then dedup across pages by `contentHash` before any wave is scheduled — promote a shared section to `components/shared/**` once and let each page file render it. Decisions land in `.clone/components.json`. Skipping this turns 5 pages into 5× the cost instead of ~2.2×.
 
 ## Step 5 — verify, repair, report
 
@@ -239,7 +239,7 @@ Everything lives under `.clone/` in the clone project root.
 | `css/` · `assets/` · `screenshots/` | Recovered cross-origin CSS; byte-exact mirror staging; page-level `orig-w<width>-full.{webp,png}` / `clone-w<width>-full.{webp,png}` plus `orig-w<width>-tile-<NN>.webp` for very tall pages. |
 | `sections/<id>/` | `spec.json`, `content.md`, `PROMPT.md`, orig+clone captures (`.webp` for agents, `.png` for `visual-diff.mjs`), `report.md`, `requests.json`, `diff.json`, `geometry.md`. A `--section` run has exactly one. |
 | `SELECTION.md` | `--section` only: requested target, resolved source selector/id/label/role, ancestor context dependencies, and the intentional verification boundary. |
-| `pages/<pageId>/` | `--pages > 1` only; same schemas per extra route. |
+| `pages/<pageId>/` | Default all-routes or explicit multi-page runs; same schemas per extra route. |
 | `flows.json` · `flows/<flowId>/` · `FLOW-MAP.md` | App targets only (`references/flows.md`): per-flow state records, per-step captures, and the flow map. `profile/` holds a live session and is **always** gitignored. |
 | `VERIFY.md` · `CLONE-REPORT.md` · `UNRESOLVED.md` | Gate table; final report; whatever the repair budget could not close. |
 

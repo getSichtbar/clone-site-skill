@@ -21,7 +21,7 @@ always overrides the profile: `--cheap --max-parallel 8` runs 8. Record the reso
 | Overlays / modals | closed approximation; omissions reported | every discovered overlay opened and measured | + complete open/dismiss/reopen sequences |
 | Carousels | first-slide approximation; omissions reported | source behavior retained; unverified scenarios reported | full behavior, autoplay/reset and both wrap boundaries |
 | Fluid sweep widths | 7 † | 7 † | 7 † |
-| Pages | 1 | `--pages` | `--pages`, `--depth 2` |
+| Pages | explicit `--pages 1` | explicit `--pages N` | all discovered public routes by default; `--depth 2` |
 | `budget.repairMax` (`K`) | **1** | **3** | **4** |
 | `budget.sectionAttemptsMax` | 1 | 2 | 3 |
 | Full-page diff | no | yes, primary width | yes, every gated width |
@@ -187,7 +187,7 @@ Section state machine. Both `skipped` and `failed` are terminal and they mean di
 
 `phases.<name>` uses the same vocabulary: `running` on entry with a `phaseLog` row opened, `done` at the exit
 gate below, `failed` on an unrecoverable tool error (stop and report — never degrade silently), `skipped` when
-the phase does not apply (`discover` at `--pages 1`, `repair` when nothing failed).
+the phase does not apply (`discover` at explicit `--pages 1`, `repair` when nothing failed).
 
 Phase order — **this table's row order is the executed order**, matching SKILL.md steps 0→5, and it is the list
 `--resume` walks. What each phase must have on disk before it may be marked `done`:
@@ -195,7 +195,7 @@ Phase order — **this table's row order is the executed order**, matching SKILL
 | Phase | Produces | Marked `done` when |
 |---|---|---|
 | `init` | `flags`, `target`, `runId` | flags parsed, Chrome precheck passed |
-| `discover` | `pages.json` (only when `--pages > 1`) | routes selected and ranked |
+| `discover` | `pages.json` (default all-routes or explicit multi-page runs) | routes selected and ranked |
 | ↳ | **runs immediately after the step-1 navigation and before `prewarm`** — it needs only a loaded DOM plus `Bash curl` for `robots.txt`/`sitemap.xml`, and running it here is what lets `--pages 0` report and stop before a single measurement pass is spent. SKILL.md step 4 *consumes* `pages.json`; it does not produce it. Route ranking and the payload: `references/sectioning.md` §9 | |
 | `prewarm` | full-height scroll, quiescent network | `docHeight` stable across two reads |
 | `motion` | `motion.json` | every `bySection` entry carries `evidence` |
@@ -301,7 +301,7 @@ all live in `references/sectioning.md`. What matters at this altitude:
   first and then discovering that `pricing` reuses four of its sections means rewriting `home`'s imports.
 - The entry page writes `.clone/{sections,motion,responsive}.json`. Every extra page writes
   `.clone/pages/<pageId>/` with byte-identical schemas and its own `raw/` and `sections/`. `pages/` is not
-  created when `--pages 1`.
+  created when explicit `--pages 1`.
 - Dedup is what makes multi-page affordable: 5 pages × 8 sections = 40 candidates typically collapse to ~22
   unique builds, so 5 pages cost ~2.2× a single page, not 5×.
 - `--pages` interacts with `--max-parallel` per wave, not per page. One wave may mix sections from two pages;

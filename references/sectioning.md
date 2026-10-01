@@ -336,7 +336,7 @@ only. For fuzzy similarity dump 4-gram shingles of the tag skeleton — `cdp:eva
 window.__clone.sections.skeletons()", filePath:".clone/raw/skeletons-1440.json"}` (needs `all()` first, same page
 state) — and compute Jaccard in Node from the dumps, never in-browser: it is an O(n²) cross-page comparison.
 
-Multi-page runs (`--pages > 1`) discover routes cheapest-source-first and union the results: (1) `robots.txt`
+Multi-page runs (default `--pages all` or explicit `--pages N` with `N > 1`) discover routes cheapest-source-first and union the results: (1) `robots.txt`
 `Sitemap:` lines via `Bash curl -s <origin>/robots.txt`, regex `^Sitemap:\s*(\S+)`; (2) `sitemap.xml` /
 `sitemap_index.xml`, parsing `<loc>` and following index children (cap 5); (3) nav + footer links via the payload
 below; (4) every same-origin `<a href>`, same payload, `--depth` hops; (5) `__NEXT_DATA__.buildManifest` or
@@ -355,7 +355,7 @@ cdp:evaluate_script {filePath:".clone/raw/routes.json", function:
 ```
 
 Drop `mailto:`/`tel:`/`javascript:`, non-HTML extensions, infinite spaces (`/tag/`, `/page/\d+`), and anything
-`robots.txt` disallows. Rank `nav zone > footer zone > inbound count > sitemap order`, take the top `--pages N`, write
+`robots.txt` disallows. Rank `nav zone > footer zone > inbound count > sitemap order`; select every publicly reachable HTML route by default, or the top `N` only when `--pages N` is explicit. Record unreachable, private, and non-HTML routes with reasons, then write
 `.clone/pages.json` = `{origin, discovered, selected, depth, pages:[{id, route, url, rank, reason, state,
 sectionCount, manifest}]}`. Segment **every** selected page before building **any** of them: building `home` first
 and then finding that `pricing` shares four of its sections means rewriting `home`'s imports.
