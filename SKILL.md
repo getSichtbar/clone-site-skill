@@ -21,6 +21,8 @@ allowed-tools:
 
 Rebuilds a target URL in real code by reading the running page: computed styles, CSSOM rules and keyframes, `document.fonts`, `getBoundingClientRect`, `getAnimations()`, the network log. **The one rule that makes this work: every number you write into the clone was measured off the live page.** Screenshots are for human judgement and for giving each section agent a visual target — never for deriving a color, a gap, or a font size. Assets are mirrored byte-for-byte; text is copied verbatim.
 
+**Fidelity contract for a normal full-page clone:** Walk every section of the original and inventory every visible interactive element. Hover, focus, press, and activate each applicable control; observe entrance, exit, reset, timed, and scroll behavior before building. Repeat the same actions on the clone and compare them side by side. Capture and compare every section and the complete page at phone, tablet, and laptop/desktop widths, plus source breakpoint boundaries. Check typography, colors, spacing, imagery, sticky elements, and motion at matched states. Do not call a page verified while any in-scope element, section, or required viewport has not been compared. See [references/interactions.md](references/interactions.md) and [references/assembly.md](references/assembly.md) for evidence and gates. Explicit user scope and profile flags may narrow this contract; record every omitted check and report the result as incomplete rather than claiming parity.
+
 Below, `cdp:` = `mcp__plugin_chrome-devtools-mcp_chrome-devtools__`. Every `evaluate_script`, `take_screenshot`, and `take_snapshot` passes `filePath`; not optional, it is what keeps a 400 KB style dump out of your context.
 
 ## Step 0 — precheck, flags, resume
@@ -47,8 +49,8 @@ Resolve the target: a bare domain gets `https://`; a URL the user pasted mid-sen
 | `--section TARGET` | off | Clone exactly one section as an importable component plus a preview page. Accepts `css:<selector>`, `id:<NN-slug>`, `role:<header\|footer\|nav\|section\|sticky-cta>`, or a unique generated label/slug. It requires the default `--pages 1` and cannot combine with `--sections`. |
 | `--sections LIST` | all | Page-build subset only: build these ids (`03-features`, ranges `0-5`, or `role:header`). Others → `state:"skipped"` plus a placeholder comment in the page file. Use singular `--section` when the deliverable is only one section. |
 | `--max-parallel N` | `6` | Section agents per wave. Clamped to `[1,10]`; `1` = sequential in-thread. |
-| `--viewport WxH` | `1440x900` and `390x844` | Repeatable. Explicit flags **replace** the default pair. First is the primary width, authoritative for the manifest; every listed viewport is measured and gated. |
-| `--profile P` | `standard` | `cheap` \| `standard` \| `thorough`. |
+| `--viewport WxH` | `1440x900`, `1024x768`, and `390x844` | Repeatable. Explicit flags **replace** the default set. First is the primary width, authoritative for the manifest; every listed viewport is measured and gated. |
+| `--profile P` | `thorough` | `cheap` \| `standard` \| `thorough`. |
 | `--cheap` / `--thorough` | — | Aliases for `--profile cheap` / `--profile thorough`. |
 | `--resume` | auto | Continue from `.clone/run.json`. Auto-implied when it exists and `phase != "done"`. |
 | `--refresh` | off | Re-measure the live page before continuing a resumed run. |
@@ -57,11 +59,11 @@ Resolve the target: a bare domain gets `https://`; a URL the user pasted mid-sen
 
 Scoped delivery contains only the selected component and a minimal preview shell. It does not mount unselected header/footer/CTA markup and does not write skipped-section placeholders. It may still retain global tokens, fonts, first-party CSS/JS reference material, and ancestor context required to render the section faithfully. Its final outcome is `scoped`, never page-wide `verified`.
 
-Before building, discover interactions using [references/interactions.md](references/interactions.md). If no profile was explicitly requested, promote `standard` to `thorough` when discovery finds looping/autoplay carousels, scroll-linked state, or coordinated animated components. Record the reason and announce the change; preserve explicit profile/viewport choices. Profile shortcuts never count as verified behavior.
+Before building, discover interactions using [references/interactions.md](references/interactions.md). Use `thorough` unless the user explicitly selects a lower-cost profile. Preserve explicit profile/viewport choices. Profile shortcuts never count as verified behavior.
 
 `--profile` sets defaults an explicit flag then overrides (`--cheap --max-parallel 8` → 8). Dark-mode extraction is not a flag: it runs whenever `color.darkMode` shows signal.
 
-| Dimension | `cheap` | `standard` (default) | `thorough` |
+| Dimension | `cheap` | `standard` | `thorough` (default) |
 |---|---|---|---|
 | Viewports measured | 1440 | 1440 + 390 | 1440 + 1024 + 390 |
 | Section captures | desktop | desktop + mobile | + tablet |

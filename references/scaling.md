@@ -11,7 +11,7 @@ many agents run at once, where the output goes, and how a killed run picks itsel
 always overrides the profile: `--cheap --max-parallel 8` runs 8. Record the resolved values in
 `run.json.flags` and `run.json.budget` before phase `prewarm`.
 
-| Dimension | `cheap` | `standard` (default) | `thorough` |
+| Dimension | `cheap` | `standard` | `thorough` (default) |
 |---|---|---|---|
 | Viewports measured | `1440x900` | `1440x900` + `390x844` | `1440x900` + `1024x768` + `390x844` |
 | Section captures | primary width only | both widths | all three widths |
@@ -44,7 +44,7 @@ its ~0.25× from viewports, captures, hover depth, motion depth, `K`, and the fu
 
 ## Profile selection and fidelity scope
 
-If no profile was explicitly requested, promote the default to `thorough` after discovering looping/autoplay carousels, scroll-linked state, or coordinated animated components. Preserve explicit overrides, record the selection reason in `run.json.notes`, and announce it without requiring another approval. Apply newly selected capture defaults before section briefs; don't rerun unaffected completed measurements.
+If no profile was explicitly requested, use `thorough`. Preserve explicit overrides and record the selection reason in `run.json.notes`. Apply the selected capture defaults before section briefs; don't rerun unaffected completed measurements. A user may explicitly select `standard` or `cheap` to reduce cost, but those shortcuts must be listed as omissions and cannot establish full behavioral or visual parity.
 
 Profiles control measurement cost, not whether an omitted behavior may be called verified. Record discovered behavior and omissions at every profile using `interactions.md`. A static or limited preview is a valid explicit scope, but never silently substitute a snap track for the source's carousel. Distinguish `--static` (output technology) from a user instruction to omit animation.
 

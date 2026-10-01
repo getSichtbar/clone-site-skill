@@ -106,7 +106,7 @@ anything scoring under `KEEP`, then merges slivers into the previous keeper.
 ## 3. Retune, and what `KEEP` actually is
 
 The knob SKILL.md calls `KEEP` is the payload's `keep` option — `sections.all({keep, sliver})`, echoed back as
-`sections.json.keepThreshold`. Default `3.0`. Per-profile values (`cheap` 3.6 · `standard` 3.0 · `thorough` 2.6)
+`sections.json.keepThreshold`. Default `2.6`. Per-profile values (`cheap` 3.6 · `standard` 3.0 · `thorough` 2.6)
 live in `references/scaling.md`.
 
 Be honest about direction: `keep` is the score a node must reach to be **accepted instead of descended into**, so

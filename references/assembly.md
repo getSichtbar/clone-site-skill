@@ -297,6 +297,8 @@ When the available browser cannot emulate a state, mark it `authored-not-verifie
 
 Read `references/interactions.md` and compare each recorded sequence on the original and clone, including intermediate motion and exit/reset states. Run `scripts/check-interactions.mjs` against `.clone/interactions.json`; it validates evidence coverage, not visual truth. Inspect the actual comparison artifacts. No required interaction may remain merely implemented, untested, or unresolved when claiming fidelity.
 
+Before marking the full page verified, review the original and clone section by section at every gated phone, tablet, and desktop viewport and at discovered breakpoint boundaries. Compare matched resting and interactive states, including the sticky header while scrolling, hover changes, carousel movement and timing, accordion transitions, responsive asset selection, footer layout, typography, colors, and spacing. Record each section/viewport result; a passing aggregate score must not hide a visibly wrong section. If a source behavior or section cannot be inspected, keep that gate unresolved and report the delivery as incomplete.
+
 Header menus must be opened to validate their centering, backdrop and pointer path. A carousel must cross both wrap boundaries, and autoplay must be observed after interaction. A static resting-state diff and an error-free build cannot substitute for these checks. Keep visual checkpoints aligned before attributing failures to animation phase.
 
 ### 5.6 `VERIFY.md`
