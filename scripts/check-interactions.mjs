@@ -37,6 +37,14 @@ export function checkInteractions(file) {
     if (typeof item.id !== 'string' || !item.id.trim() || ids.has(item.id)) fail(`Missing or duplicate interaction ID: ${label}`);
     ids.add(item.id);
     if (!sections.includes(item.section)) fail(`${label}: unknown section`);
+    if (item.status === 'blockedByPolicy') {
+      // --shopify-app only: a control on someone else's app that the read-only click policy forbids
+      // (references/shopify-embedded.md S1). Its hover/focus capture is the evidence; it is never verified.
+      if (ledger?.policy !== 'shopify-app-read-only') fail(`${label}: blockedByPolicy needs ledger.policy "shopify-app-read-only"`);
+      if (typeof item.policyReason !== 'string' || !item.policyReason.trim()) fail(`${label}: blockedByPolicy needs policyReason`);
+      evidence(item.evidence, `${label} policy evidence`);
+      continue;
+    }
     if (item.status === 'excluded') {
       if (typeof item.userScopeInstruction !== 'string' || !item.userScopeInstruction.trim()) fail(`${label}: exclusion needs the user scope instruction`);
       continue;

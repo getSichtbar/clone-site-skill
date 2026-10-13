@@ -34,12 +34,29 @@ test('blocks writes, billing and persisting controls (EN + DE)', () => {
 test('lets read-only navigation through and keeps unknowns for review', () => {
   const { S } = install();
   const live = { interactive: true };
-  for (const label of ['Learn more', 'How to use', 'View guide', 'Watch tutorial', 'Details', 'Cancel', 'Anleitung ansehen', 'Mehr erfahren']) {
+  for (const label of ['Learn more', 'How to use', 'View guide', 'Watch tutorial', 'Details', 'Anleitung ansehen', 'Mehr erfahren']) {
     assert.equal(S.classify(label, 'button', live), 'safe-to-open', label);
   }
   assert.equal(S.classify('Keyword Research', 'tab', live), 'safe-to-open');
   assert.equal(S.classify('Content Optimization', 'link', { interactive: true, inAppLink: true }), 'safe-to-open');
   assert.equal(S.classify('Blog Generator', 'button', live), 'review');
+});
+
+test('regressions from review: cancellation, umlauts, wizard steps, script links, risky hrefs', () => {
+  const { S } = install();
+  const live = { interactive: true };
+  for (const label of ['Cancel subscription', 'Cancel plan', 'Übernehmen', 'Änderungen übernehmen', 'Abo kündigen', 'Get started', 'Start 14-day free trial', 'Add keyword', 'Create blog post', 'Mark as complete', 'Dismiss', 'Turn on', 'Approve', 'Accept', 'Einschalten', 'Hinzufügen']) {
+    assert.equal(S.classify(label, 'button', live), 'do-not-click', label);
+  }
+  for (const label of ['Cancel', 'Close', 'Abbrechen', 'Schließen', 'Back']) assert.equal(S.classify(label, 'button', live), 'safe-to-open', label);
+  for (const label of ['Next', 'Continue', 'Weiter']) assert.equal(S.classify(label, 'button', live), 'review', label);
+  assert.equal(S.classify('Open', 'link', { interactive: true, scriptLink: true }), 'review');
+  assert.equal(S.classify('Plans', 'link', { interactive: true, inAppLink: true, riskyHref: true }), 'do-not-click');
+  assert.equal(S.classify('Read more about pricing', 'link', { interactive: true, inAppLink: true }), 'safe-to-open');
+});
+
+test('payload never clicks, types or submits', () => {
+  assert.doesNotMatch(payload, /\.click\(|dispatchEvent\(|requestSubmit|\.submit\(|\.value\s*=|\.checked\s*=|\.focus\(/);
 });
 
 test('disabled or non-interactive elements are hover-only', () => {

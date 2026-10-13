@@ -17,6 +17,9 @@ allowed-tools:
   - Grep
   - Bash
   - mcp__plugin_chrome-devtools-mcp_chrome-devtools__*
+  - mcp__claude-in-chrome__*
+  - mcp__claude_ai_Figma__*
+  - mcp__shopify-dev-mcp__*
 ---
 
 Rebuilds a target URL in real code by reading the running page: computed styles, CSSOM rules and keyframes, `document.fonts`, `getBoundingClientRect`, `getAnimations()`, the network log. **The one rule that makes this work: every number you write into the clone was measured off the live page.** Screenshots are for human judgement and for giving each section agent a visual target — never for deriving a color, a gap, or a font size. Assets are mirrored byte-for-byte; text is copied verbatim.
@@ -42,7 +45,7 @@ Resolve the target: a bare domain gets `https://`; a URL the user pasted mid-sen
 
 | Flag | Default | Effect |
 |---|---|---|
-| `--shopify-app` | off | Target is a Shopify embedded admin app. Read `references/shopify-embedded.md`: read-only click policy, iframe unclip, per-element inventory with risk classes, Polaris vs custom split, Figma-first then code deliverable. Implies the app path (Step 0b). |
+| `--shopify-app` | off (auto-on for `admin.shopify.com/store/*/apps/*` URLs; record it in `run.json.flags.shopifyApp`) | Target is a Shopify embedded admin app. Read `references/shopify-embedded.md`: read-only click policy, iframe unclip, per-element inventory with risk classes, Polaris vs custom split, Figma-first then code deliverable. Implies the app path (Step 0b). |
 | `--static` | off | Emit framework-agnostic `index.html` + `styles.css` + `main.js` + `sections/*.html`; tokens become `:root{--…}`. Overrides stack detection. |
 | `--out DIR` | `./<domain>-clone` | Scaffold target. Ignored in adopt mode. |
 | `--pages N|all` | `all` | Clone all publicly reachable HTML routes discovered from sitemap, navigation, footer, and same-origin links. An explicit `N` limits the count; `0` reports discovered routes without building. |
@@ -104,7 +107,7 @@ says why, including when the target runs on a design system you should import ra
 1. Motion instrumentation must exist before the page's own scripts do, so the HOOKS IIFE rides in on this navigation: **Step 2a — capture motion. Read `references/motion.md` §M0 now**: the `initScript` hooks must be installed before the page's own scripts run, so read this before you navigate.
 2. `cdp:new_page {url, isolatedContext:"clone"}` for a clean first-visit state, then `cdp:navigate_page {url, type:"url", initScript: HOOKS}`. `initScript` applies to the next navigation only — re-pass it after every reload. Navigation failures do not throw: read the response text for `Unable to navigate`.
 3. `cdp:wait_for {text:["<a real string from the footer>"]}`, then poll `cdp:evaluate_script` for `document.readyState === 'complete'` and `document.fonts.status === 'loaded'` before measuring anything typographic.
-4. Consent banner: `cdp:take_snapshot {filePath}`, `cdp:click {uid}` the accept control, re-snapshot. An overlay left up sets `body{overflow:hidden}` and destroys every `scrollHeight` you are about to read.
+4. Consent banner: `cdp:take_snapshot {filePath}`, `cdp:click {uid}` the accept control, re-snapshot. **Exception — `--shopify-app`:** decline non-essential instead (`references/shopify-embedded.md` S1); never accept terms on someone else's app. An overlay left up sets `body{overflow:hidden}` and destroys every `scrollHeight` you are about to read.
 5. **Step 1b — decide the output stack. Read `references/stacks.md` now**: detect an existing repo's conventions or scaffold, then record the path map into `run.json.stack`. Adopt mode wins when a repo is detected; otherwise scaffold Next 15 App Router + Tailwind v4; `--static` overrides both.
 
 Exit gate: `run.json` has `target.finalUrl`, `stack.mode` and the full path map, `phase:"prewarm"`.

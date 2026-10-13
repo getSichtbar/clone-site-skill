@@ -113,3 +113,14 @@ test('a required scenario cannot be waived as not-applicable', t => {
   Object.assign(f.scenario, { status: 'not-applicable', reason: 'Not implemented', evidence: 'original.json' });
   assert.equal(f.run().passed, false);
 });
+
+test('accepts blockedByPolicy only under the shopify read-only policy with reason and evidence', t => {
+  const f = fixture(t);
+  f.write('hover.json', { hover: 'captured' });
+  f.ledger.interactions.push({ id: 'upgrade-btn', section: 'carousel', kind: 'button', status: 'blockedByPolicy', policyReason: 'do-not-click: Upgrade', evidence: 'hover.json' });
+  assert.match(f.run().errors.join('\n'), /needs ledger.policy/);
+  f.ledger.policy = 'shopify-app-read-only';
+  assert.deepEqual(f.run(), { passed: true, verified: 1, total: 2, errors: [] });
+  delete f.ledger.interactions[1].policyReason;
+  assert.match(f.run().errors.join('\n'), /needs policyReason/);
+});
