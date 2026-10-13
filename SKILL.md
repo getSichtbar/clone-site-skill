@@ -1,12 +1,12 @@
 ---
 name: clone-site
-description: Clones a website or one selected live section with high fidelity from its source of truth. Use when the user says clone this site, copy this page, rebuild this landing page, recreate this design, clone just this section, rebuild the hero/pricing/features section, make me a site like X, or pastes a URL and asks for the same thing in their stack. Drives Chrome DevTools MCP to measure computed styles, CSSOM, fonts, geometry, motion, and breakpoints, mirrors required assets byte-for-byte, recovers the motion system from the site's own bundle when it is hand-rolled, then builds and verifies the selected scope against the original.
+description: Clones a website or one selected live section with high fidelity from its source of truth. Use when the user says clone this site, copy this page, rebuild this landing page, recreate this design, clone just this section, rebuild the hero/pricing/features section, make me a site like X, or pastes a URL and asks for the same thing in their stack. Drives Chrome DevTools MCP to measure computed styles, CSSOM, fonts, geometry, motion, and breakpoints, mirrors required assets byte-for-byte, recovers the motion system from the site's own bundle when it is hand-rolled, then builds and verifies the selected scope against the original. With --shopify-app it tears down another Shopify embedded admin app read-only (every button, tooltip, popover, state and width, design system, unique features) and rebuilds it Figma-first, then in code with Polaris web components.
 user-invocable: true
-argument-hint: "<url> [--static] [--section target | --sections ids] [--pages N|all] [--max-parallel N] [--viewport WxH] [--profile cheap|standard|thorough] [--cheap] [--thorough] [--out DIR] [--depth N] [--resume] [--refresh]"
+argument-hint: "<url> [--shopify-app] [--static] [--section target | --sections ids] [--pages N|all] [--max-parallel N] [--viewport WxH] [--profile cheap|standard|thorough] [--cheap] [--thorough] [--out DIR] [--depth N] [--resume] [--refresh]"
 license: MIT
 metadata:
   author: aatmik
-  version: "1.4.0"
+  version: "1.5.0"
   category: frontend
 allowed-tools:
   - Task
@@ -17,6 +17,9 @@ allowed-tools:
   - Grep
   - Bash
   - mcp__plugin_chrome-devtools-mcp_chrome-devtools__*
+  - mcp__claude-in-chrome__*
+  - mcp__claude_ai_Figma__*
+  - mcp__shopify-dev-mcp__*
 ---
 
 Rebuilds a target URL in real code by reading the running page: computed styles, CSSOM rules and keyframes, `document.fonts`, `getBoundingClientRect`, `getAnimations()`, the network log. **The one rule that makes this work: every number you write into the clone was measured off the live page.** Screenshots are for human judgement and for giving each section agent a visual target — never for deriving a color, a gap, or a font size. Assets are mirrored byte-for-byte; text is copied verbatim.
@@ -42,6 +45,7 @@ Resolve the target: a bare domain gets `https://`; a URL the user pasted mid-sen
 
 | Flag | Default | Effect |
 |---|---|---|
+| `--shopify-app` | off (auto-on for `admin.shopify.com/store/*/apps/*` URLs; record it in `run.json.flags.shopifyApp`) | Target is a Shopify embedded admin app. Read `references/shopify-embedded.md`: read-only click policy, iframe unclip, per-element inventory with risk classes, Polaris vs custom split, Figma-first then code deliverable. Implies the app path (Step 0b). |
 | `--static` | off | Emit framework-agnostic `index.html` + `styles.css` + `main.js` + `sections/*.html`; tokens become `:root{--…}`. Overrides stack detection. |
 | `--out DIR` | `./<domain>-clone` | Scaffold target. Ignored in adopt mode. |
 | `--pages N|all` | `all` | Clone all publicly reachable HTML routes discovered from sitemap, navigation, footer, and same-origin links. An explicit `N` limits the count; `0` reports discovered routes without building. |
@@ -96,12 +100,14 @@ screenshot, and provoking the empty / validation / loading / error / resume stat
 walkthrough misses. For an app the default deliverable is a **flow map**, not a stylesheet — §F0
 says why, including when the target runs on a design system you should import rather than clone.
 
+**Shopify embedded app (`--shopify-app`, or an `admin.shopify.com/.../apps/...` URL): also read `references/shopify-embedded.md`.** It adds the read-only click policy for someone else's app, the iframe unclip, the per-element inventory (`scripts/extract-shopify.js`), the design-system and unique-features write-up, and the Figma-first, code-second deliverable.
+
 ## Step 1 — navigate, and decide where the code goes
 
 1. Motion instrumentation must exist before the page's own scripts do, so the HOOKS IIFE rides in on this navigation: **Step 2a — capture motion. Read `references/motion.md` §M0 now**: the `initScript` hooks must be installed before the page's own scripts run, so read this before you navigate.
 2. `cdp:new_page {url, isolatedContext:"clone"}` for a clean first-visit state, then `cdp:navigate_page {url, type:"url", initScript: HOOKS}`. `initScript` applies to the next navigation only — re-pass it after every reload. Navigation failures do not throw: read the response text for `Unable to navigate`.
 3. `cdp:wait_for {text:["<a real string from the footer>"]}`, then poll `cdp:evaluate_script` for `document.readyState === 'complete'` and `document.fonts.status === 'loaded'` before measuring anything typographic.
-4. Consent banner: `cdp:take_snapshot {filePath}`, `cdp:click {uid}` the accept control, re-snapshot. An overlay left up sets `body{overflow:hidden}` and destroys every `scrollHeight` you are about to read.
+4. Consent banner: `cdp:take_snapshot {filePath}`, `cdp:click {uid}` the accept control, re-snapshot. **Exception — `--shopify-app`:** decline non-essential instead (`references/shopify-embedded.md` S1); never accept terms on someone else's app. An overlay left up sets `body{overflow:hidden}` and destroys every `scrollHeight` you are about to read.
 5. **Step 1b — decide the output stack. Read `references/stacks.md` now**: detect an existing repo's conventions or scaffold, then record the path map into `run.json.stack`. Adopt mode wins when a repo is detected; otherwise scaffold Next 15 App Router + Tailwind v4; `--static` overrides both.
 
 Exit gate: `run.json` has `target.finalUrl`, `stack.mode` and the full path map, `phase:"prewarm"`.
@@ -240,6 +246,7 @@ Everything lives under `.clone/` in the clone project root.
 | `sections/<id>/` | `spec.json`, `content.md`, `PROMPT.md`, orig+clone captures (`.webp` for agents, `.png` for `visual-diff.mjs`), `report.md`, `requests.json`, `diff.json`, `geometry.md`. A `--section` run has exactly one. |
 | `SELECTION.md` | `--section` only: requested target, resolved source selector/id/label/role, ancestor context dependencies, and the intentional verification boundary. |
 | `pages/<pageId>/` | Default all-routes or explicit multi-page runs; same schemas per extra route. |
+| `shopify/` | `--shopify-app` only: `surfaces.md`, per-surface `*-elements.json` (inventory with risk + outcome) and `*-tokens.json`, `DESIGN-SYSTEM.md`. Figma link + per-frame scores go in `CLONE-REPORT.md`. |
 | `flows.json` · `flows/<flowId>/` · `FLOW-MAP.md` | App targets only (`references/flows.md`): per-flow state records, per-step captures, and the flow map. `profile/` holds a live session and is **always** gitignored. |
 | `VERIFY.md` · `CLONE-REPORT.md` · `UNRESOLVED.md` | Gate table; final report; whatever the repair budget could not close. |
 
@@ -258,4 +265,3 @@ Close by linking `.clone/CLONE-REPORT.md` and `.clone/PROVENANCE.md`.
 | Every section fails the same geometry probe | foundation is wrong, not the sections | `references/assembly.md` — systemic-cause first |
 | Mobile or dark values missing entirely | running on the Playwright fallback (no `emulate`) | `references/troubleshooting.md` — fallback map |
 
-<!-- SPEC-GAP: SPEC §H sets SKILL.md at 150-200 lines (ceiling 240) while the authoring task asked for 220-320; this file lands inside SPEC's ceiling. SPEC §H also says the third-party-marks policy note appears only in references/assets.md and CLONE-REPORT.md, but the locked user decision and the authoring task both require one short note here — included once in step 5, ungated. Headline gate numbers are restated here (task requirement) with per-property tolerances left to references/assembly.md. -->

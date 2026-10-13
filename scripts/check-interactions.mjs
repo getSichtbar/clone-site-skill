@@ -37,6 +37,24 @@ export function checkInteractions(file) {
     if (typeof item.id !== 'string' || !item.id.trim() || ids.has(item.id)) fail(`Missing or duplicate interaction ID: ${label}`);
     ids.add(item.id);
     if (!sections.includes(item.section)) fail(`${label}: unknown section`);
+    if (item.status === 'blockedByPolicy') {
+      // --shopify-app only: a control on someone else's app that the read-only click policy forbids
+      // (references/shopify-embedded.md S1). Its hover/focus capture is the evidence; it is never verified.
+      if (ledger?.policy !== 'shopify-app-read-only') fail(`${label}: blockedByPolicy needs ledger.policy "shopify-app-read-only"`);
+      if (typeof item.policyReason !== 'string' || !item.policyReason.trim()) fail(`${label}: blockedByPolicy needs policyReason`);
+      evidence(item.evidence, `${label} policy evidence`);
+      // The block must be backed by the inventory row: only do-not-click (or review) elements may be blocked.
+      const inventoryFile = evidence(item.inventory, `${label} inventory`);
+      if (inventoryFile) {
+        try {
+          const inv = JSON.parse(fs.readFileSync(inventoryFile, 'utf8'));
+          const row = (inv?.elements || []).find(el => el?.id === item.inventoryId);
+          if (!row) fail(`${label}: inventoryId ${item.inventoryId} not found in ${item.inventory}`);
+          else if (row.risk !== 'do-not-click' && row.risk !== 'review') fail(`${label}: inventory risk is ${row.risk}; only do-not-click/review may be blockedByPolicy`);
+        } catch (error) { fail(`${label}: invalid inventory JSON: ${error.message}`); }
+      }
+      continue;
+    }
     if (item.status === 'excluded') {
       if (typeof item.userScopeInstruction !== 'string' || !item.userScopeInstruction.trim()) fail(`${label}: exclusion needs the user scope instruction`);
       continue;

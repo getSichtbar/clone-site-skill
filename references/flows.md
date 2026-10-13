@@ -25,7 +25,7 @@ engineering, not just legal:
 
 | if the target is | why not to clone its CSS |
 |---|---|
-| a Shopify embedded app | it is Polaris. Reproducing Polaris's computed styles in bespoke CSS means hand-maintaining a design system you could import, and drifting from the admin every time Shopify ships. Build on `@shopify/polaris`; take the *flow*, not the chrome. |
+| a Shopify embedded app | it is Polaris. Reproducing Polaris's computed styles in bespoke CSS means hand-maintaining a design system you could import, and drifting from the admin every time Shopify ships. Build on Polaris web components (`s-*`; the React `@shopify/polaris` package is deprecated); take the *flow*, not the chrome. Exception: with `--shopify-app` the user has explicitly asked for a visual reference set, so `references/shopify-embedded.md` produces `spec+visual` (Figma reference frames first, then a Polaris-based build); the competitor's art, copy and brand never ship. |
 | any admin built on a known kit (MUI, Chakra, shadcn, Ant, Carbon) | same argument. Detect the kit (`references/stacks.md` §1 row 9) and use it. |
 | a competitor's product surface | interface trade dress is a real exposure, and marketplace review processes look at UI similarity. A flow map carries no such risk. |
 

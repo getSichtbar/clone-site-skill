@@ -29,6 +29,14 @@ To reproduce only one live section as an importable component and preview page:
 Requires Chrome (the skill drives it over CDP) and Node 18+. If Chrome DevTools MCP cannot
 launch, `references/troubleshooting.md` covers the fallbacks.
 
+## Shopify embedded apps
+
+```
+/clone-site https://admin.shopify.com/store/<store>/apps/<app-handle> --shopify-app
+```
+
+Tears down another Shopify app read-only (every button, tooltip, popover, state and width; design system; unique features) and rebuilds it Figma-first, then in code with Polaris web components. Safety rules and workflow: `references/shopify-embedded.md`. Use your own dev store with the app installed and log in yourself. The payload never clicks, types or reads form values (`unclip()` only restyles the admin frame so it can be captured); it classifies every control (install, upgrade, trial, save, publish, connect, generate, "fix now" and similar are `do-not-click`) and the workflow forbids clicking those on the target app. Tests: `node --test scripts/check-interactions.test.mjs scripts/extract-shopify.test.mjs`.
+
 ## What it does
 
 ```
@@ -129,7 +137,7 @@ redacted: on an authenticated app those are tenant data.
 | path | contents |
 |---|---|
 | `SKILL.md` | the pipeline: steps 0→5, flags, profiles, gates, hard rules |
-| `references/` | 12 files, one per phase — read at the point of use, not up front |
+| `references/` | 15 files, one per phase — read at the point of use, not up front |
 | `scripts/` | installer payloads evaluated in the page, plus the asset mirror and the differ |
 
 ## A note on what it produces
