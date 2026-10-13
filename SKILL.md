@@ -1,12 +1,12 @@
 ---
 name: clone-site
-description: Clones a website or one selected live section with high fidelity from its source of truth. Use when the user says clone this site, copy this page, rebuild this landing page, recreate this design, clone just this section, rebuild the hero/pricing/features section, make me a site like X, or pastes a URL and asks for the same thing in their stack. Drives Chrome DevTools MCP to measure computed styles, CSSOM, fonts, geometry, motion, and breakpoints, mirrors required assets byte-for-byte, recovers the motion system from the site's own bundle when it is hand-rolled, then builds and verifies the selected scope against the original.
+description: Clones a website or one selected live section with high fidelity from its source of truth. Use when the user says clone this site, copy this page, rebuild this landing page, recreate this design, clone just this section, rebuild the hero/pricing/features section, make me a site like X, or pastes a URL and asks for the same thing in their stack. Drives Chrome DevTools MCP to measure computed styles, CSSOM, fonts, geometry, motion, and breakpoints, mirrors required assets byte-for-byte, recovers the motion system from the site's own bundle when it is hand-rolled, then builds and verifies the selected scope against the original. With --shopify-app it tears down another Shopify embedded admin app read-only (every button, tooltip, popover, state and width, design system, unique features) and rebuilds it Figma-first, then in code with Polaris web components.
 user-invocable: true
-argument-hint: "<url> [--static] [--section target | --sections ids] [--pages N|all] [--max-parallel N] [--viewport WxH] [--profile cheap|standard|thorough] [--cheap] [--thorough] [--out DIR] [--depth N] [--resume] [--refresh]"
+argument-hint: "<url> [--shopify-app] [--static] [--section target | --sections ids] [--pages N|all] [--max-parallel N] [--viewport WxH] [--profile cheap|standard|thorough] [--cheap] [--thorough] [--out DIR] [--depth N] [--resume] [--refresh]"
 license: MIT
 metadata:
   author: aatmik
-  version: "1.4.0"
+  version: "1.5.0"
   category: frontend
 allowed-tools:
   - Task
@@ -42,6 +42,7 @@ Resolve the target: a bare domain gets `https://`; a URL the user pasted mid-sen
 
 | Flag | Default | Effect |
 |---|---|---|
+| `--shopify-app` | off | Target is a Shopify embedded admin app. Read `references/shopify-embedded.md`: read-only click policy, iframe unclip, per-element inventory with risk classes, Polaris vs custom split, Figma-first then code deliverable. Implies the app path (Step 0b). |
 | `--static` | off | Emit framework-agnostic `index.html` + `styles.css` + `main.js` + `sections/*.html`; tokens become `:root{--…}`. Overrides stack detection. |
 | `--out DIR` | `./<domain>-clone` | Scaffold target. Ignored in adopt mode. |
 | `--pages N|all` | `all` | Clone all publicly reachable HTML routes discovered from sitemap, navigation, footer, and same-origin links. An explicit `N` limits the count; `0` reports discovered routes without building. |
@@ -95,6 +96,8 @@ real document inside an iframe, discovering candidate flows, capturing a *state*
 screenshot, and provoking the empty / validation / loading / error / resume states a happy-path
 walkthrough misses. For an app the default deliverable is a **flow map**, not a stylesheet — §F0
 says why, including when the target runs on a design system you should import rather than clone.
+
+**Shopify embedded app (`--shopify-app`, or an `admin.shopify.com/.../apps/...` URL): also read `references/shopify-embedded.md`.** It adds the read-only click policy for someone else's app, the iframe unclip, the per-element inventory (`scripts/extract-shopify.js`), the design-system and unique-features write-up, and the Figma-first, code-second deliverable.
 
 ## Step 1 — navigate, and decide where the code goes
 
@@ -240,6 +243,7 @@ Everything lives under `.clone/` in the clone project root.
 | `sections/<id>/` | `spec.json`, `content.md`, `PROMPT.md`, orig+clone captures (`.webp` for agents, `.png` for `visual-diff.mjs`), `report.md`, `requests.json`, `diff.json`, `geometry.md`. A `--section` run has exactly one. |
 | `SELECTION.md` | `--section` only: requested target, resolved source selector/id/label/role, ancestor context dependencies, and the intentional verification boundary. |
 | `pages/<pageId>/` | Default all-routes or explicit multi-page runs; same schemas per extra route. |
+| `shopify/` | `--shopify-app` only: `surfaces.md`, per-surface `*-elements.json` (inventory with risk + outcome) and `*-tokens.json`, `DESIGN-SYSTEM.md`. |
 | `flows.json` · `flows/<flowId>/` · `FLOW-MAP.md` | App targets only (`references/flows.md`): per-flow state records, per-step captures, and the flow map. `profile/` holds a live session and is **always** gitignored. |
 | `VERIFY.md` · `CLONE-REPORT.md` · `UNRESOLVED.md` | Gate table; final report; whatever the repair budget could not close. |
 

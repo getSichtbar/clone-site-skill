@@ -29,6 +29,14 @@ To reproduce only one live section as an importable component and preview page:
 Requires Chrome (the skill drives it over CDP) and Node 18+. If Chrome DevTools MCP cannot
 launch, `references/troubleshooting.md` covers the fallbacks.
 
+## Shopify embedded apps
+
+```
+/clone-site https://admin.shopify.com/store/<store>/apps/<app-handle> --shopify-app
+```
+
+Tears down another Shopify app read-only (every button, tooltip, popover, state and width; design system; unique features) and rebuilds it Figma-first, then in code with Polaris web components. Safety rules and workflow: `references/shopify-embedded.md`. Use your own dev store with the app installed and log in yourself; the skill never clicks install, upgrade, save, publish, connect or similar.
+
 ## What it does
 
 ```
