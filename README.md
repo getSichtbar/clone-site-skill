@@ -35,7 +35,7 @@ launch, `references/troubleshooting.md` covers the fallbacks.
 /clone-site https://admin.shopify.com/store/<store>/apps/<app-handle> --shopify-app
 ```
 
-Tears down another Shopify app read-only (every button, tooltip, popover, state and width; design system; unique features) and rebuilds it Figma-first, then in code with Polaris web components. Safety rules and workflow: `references/shopify-embedded.md`. Use your own dev store with the app installed and log in yourself. The payload only reads the page; it classifies every control (install, upgrade, trial, save, publish, connect, generate, "fix now" and similar are `do-not-click`) and the workflow forbids clicking those on the target app. Tests: `node --test scripts/check-interactions.test.mjs scripts/extract-shopify.test.mjs`.
+Tears down another Shopify app read-only (every button, tooltip, popover, state and width; design system; unique features) and rebuilds it Figma-first, then in code with Polaris web components. Safety rules and workflow: `references/shopify-embedded.md`. Use your own dev store with the app installed and log in yourself. The payload never clicks, types or reads form values (`unclip()` only restyles the admin frame so it can be captured); it classifies every control (install, upgrade, trial, save, publish, connect, generate, "fix now" and similar are `do-not-click`) and the workflow forbids clicking those on the target app. Tests: `node --test scripts/check-interactions.test.mjs scripts/extract-shopify.test.mjs`.
 
 ## What it does
 

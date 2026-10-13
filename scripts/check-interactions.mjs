@@ -43,6 +43,16 @@ export function checkInteractions(file) {
       if (ledger?.policy !== 'shopify-app-read-only') fail(`${label}: blockedByPolicy needs ledger.policy "shopify-app-read-only"`);
       if (typeof item.policyReason !== 'string' || !item.policyReason.trim()) fail(`${label}: blockedByPolicy needs policyReason`);
       evidence(item.evidence, `${label} policy evidence`);
+      // The block must be backed by the inventory row: only do-not-click (or review) elements may be blocked.
+      const inventoryFile = evidence(item.inventory, `${label} inventory`);
+      if (inventoryFile) {
+        try {
+          const inv = JSON.parse(fs.readFileSync(inventoryFile, 'utf8'));
+          const row = (inv?.elements || []).find(el => el?.id === item.inventoryId);
+          if (!row) fail(`${label}: inventoryId ${item.inventoryId} not found in ${item.inventory}`);
+          else if (row.risk !== 'do-not-click' && row.risk !== 'review') fail(`${label}: inventory risk is ${row.risk}; only do-not-click/review may be blockedByPolicy`);
+        } catch (error) { fail(`${label}: invalid inventory JSON: ${error.message}`); }
+      }
       continue;
     }
     if (item.status === 'excluded') {

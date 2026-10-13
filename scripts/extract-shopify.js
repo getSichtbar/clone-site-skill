@@ -35,16 +35,21 @@
     'upgraden', 'abonnieren', 'kündigen', 'testphase(?: starten)?', 'kostenlos testen', 'jetzt starten', 'loslegen', 'jetzt beheben', 'beheben', 'verbinden', 'trennen',
     'senden', 'absenden', 'generieren', 'optimieren', 'aktivieren', 'deaktivieren', 'einschalten', 'ausschalten', 'bestätigen', 'akzeptieren', 'zustimmen', 'erlauben',
     'importieren', 'exportieren', 'synchronisieren', 'ausblenden', 'verwerfen',
+    'kaufen', 'bezahlen', 'bestellen', 'buchen', 'installieren', 'deinstallieren', 'freischalten', 'abschließen', 'wechseln',
+    '(?:plan|tarif|paket) (?:wählen|auswählen|ändern|wechseln)', 'jetzt (?:kaufen|upgraden|buchen)', 'als erledigt markieren', 'erledigt',
   ].join('|'));
   // "Cancel"/"Close"/"Abbrechen" are only safe as the WHOLE label (a modal's close button), never as
   // part of a longer label ("Cancel subscription" is caught above first anyway).
   const SAFE_EXACT = /^(?:cancel|close|abbrechen|schließen|back|zurück|×|x)$/iu;
-  const SAFE = W([
+  // SAFE only counts when the label STARTS with the phrase and is short (<= 4 words):
+  // "Help me write a description" is an action, not a help link.
+  const SAFE_ANY = W([
     'learn more', 'read more', 'show more', 'view more', 'see more', 'how to use', 'how it works', 'view guide', 'guide', 'docs', 'documentation',
     'details', 'view details', 'preview', 'filter', 'sort', 'help', 'tutorial', 'watch(?: tutorial| video)?', 'faq',
     'mehr erfahren', 'mehr anzeigen', 'weiterlesen', 'anleitung(?: ansehen)?', 'so funktioniert', 'hilfe', 'vorschau', 'details anzeigen', 'ansehen',
   ].join('|'));
-  const PERSISTING_ROLES = /^(checkbox|switch|radio|textbox|combobox|input|select|textarea|s-switch|s-checkbox|s-text-field|s-select|s-choice-list)$/;
+  const SAFE = { test: (t) => { const m = t.match(SAFE_ANY); return !!m && m.index === 0 && t.split(/\s+/).filter(Boolean).length <= 4; } };
+  const PERSISTING_ROLES = /^(checkbox|switch|radio|textbox|combobox|searchbox|spinbutton|slider|input|select|textarea|s-switch|s-checkbox|s-text-field|s-text-area|s-number-field|s-search-field|s-email-field|s-url-field|s-password-field|s-money-field|s-date-field|s-date-picker|s-color-field|s-color-picker|s-drop-zone|s-select|s-choice-list)$/;
   const RISKY_HREF = /(?:^|\/)(?:charges|billing|subscriptions?|recurring_application_charges|application_charges|uninstall|oauth|authorize|confirm)(?:[\/?#]|$)/i;
 
   S.classify = function (text, role, opts) {
@@ -55,8 +60,25 @@
     if (DO_NOT.test(t) || PERSISTING_ROLES.test(String(role || ''))) return 'do-not-click';
     if (o.externalHref || o.riskyHref) return 'do-not-click';
     if (o.scriptLink) return 'review';
-    if (SAFE_EXACT.test(t) || SAFE.test(t) || role === 'tab' || o.inAppLink) return 'safe-to-open';
+    if (SAFE_EXACT.test(t) || SAFE.test(t) || role === 'tab' || (o.inAppLink && o.navLink)) return 'safe-to-open';
     return 'review';
+  };
+
+  // Pure: derive the link flags used by classify(); also used by the node test.
+  S.hrefFlags = function (href, pageHref) {
+    const out = { href: null, externalHref: false, riskyHref: false, scriptLink: false, inAppLink: false };
+    if (!href) return out;
+    const raw = String(href).trim();
+    if (/^(#|javascript:)/i.test(raw)) { out.scriptLink = true; out.href = raw.slice(0, 1) === '#' ? '#' : 'javascript:'; return out; }
+    let u; try { u = new URL(raw, pageHref); } catch (_) { out.scriptLink = true; return out; }
+    // Never store query strings or hashes: embedded app links carry shop, host, hmac, session, id_token.
+    out.href = u.protocol + (u.host ? '//' + u.host : '') + u.pathname;
+    const page = (() => { try { return new URL(pageHref); } catch (_) { return null; } })();
+    if (!/^https?:$/.test(u.protocol)) { out.externalHref = true; return out; }
+    out.externalHref = !!(page && u.hostname !== page.hostname && u.hostname !== 'admin.shopify.com');
+    out.riskyHref = RISKY_HREF.test(u.pathname);
+    out.inAppLink = !out.externalHref;
+    return out;
   };
 
   S.unclip = function (minHeight) {
@@ -74,7 +96,14 @@
 
   const SEL = 'a[href],button,[role=button],[role=tab],[role=link],[role=menuitem],[role=switch],[role=checkbox],[role=radio],input,select,textarea,summary,[tabindex]:not([tabindex="-1"]),[title],[aria-describedby],[data-tooltip],[aria-label],s-button,s-link,s-clickable,s-tooltip,s-badge,s-switch,s-checkbox,s-select,s-text-field,s-choice-list,s-icon';
   const visible = (e) => { const r = e.getBoundingClientRect(); const s = getComputedStyle(e); return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && +s.opacity > 0.01; };
-  const labelOf = (e) => (e.getAttribute('aria-label') || e.innerText || e.value || e.getAttribute('title') || e.getAttribute('placeholder') || e.getAttribute('alt') || '').replace(/\s+/g, ' ').trim().slice(0, 140);
+  // Never read .value: settings fields can hold API keys, emails and store data.
+  const FIELD = /^(input|textarea|select|s-text-field|s-text-area|s-number-field|s-search-field|s-email-field|s-url-field|s-password-field|s-money-field|s-date-field)$/;
+  const labelOf = (e) => {
+    const field = FIELD.test(e.tagName.toLowerCase());
+    const label = e.getAttribute('aria-label') || e.getAttribute('label') || (e.labels && e.labels[0] && e.labels[0].innerText)
+      || (field ? '' : e.innerText) || e.getAttribute('title') || e.getAttribute('placeholder') || e.getAttribute('alt') || '';
+    return String(label).replace(/\s+/g, ' ').trim().slice(0, 140);
+  };
 
   S.inventory = function () {
     const seen = new Set(); const out = [];
@@ -87,18 +116,14 @@
         .map((id) => (document.getElementById(id) || {}).innerText || '').join(' ');
       const tooltip = (e.getAttribute('title') || e.getAttribute('data-tooltip') || describedBy || (tag === 's-tooltip' ? e.innerText : '') || '').trim().slice(0, 200);
       const interactive = /^(a|button|input|select|textarea|summary|s-button|s-link|s-clickable|s-switch|s-checkbox|s-select|s-text-field|s-choice-list)$/.test(tag) || /button|tab|link|menuitem|switch|checkbox|radio/.test(role);
-      const href = e.getAttribute('href') || null;
-      let host = null; let path = '';
-      try { if (href) { const u = new URL(href, location.href); host = u.hostname; path = u.pathname; } } catch (_) { host = null; }
-      const scriptLink = !!(href && /^\s*(#|javascript:)/i.test(href));
-      const externalHref = !!(host && host !== location.hostname && host !== 'admin.shopify.com');
-      const riskyHref = !!(href && RISKY_HREF.test(path));
+      const f = S.hrefFlags(e.getAttribute('href'), location.href);
+      const navLink = !!e.closest('nav,[role=navigation],[role=tablist],s-app-nav,ui-nav-menu') || e.getAttribute('aria-current') === 'page';
       const text = labelOf(e);
       out.push({
-        id: out.length + 1, tag, role, text, tooltip, href,
+        id: out.length + 1, tag, role, text, tooltip, href: f.href,
         box: { x: Math.round(r.x), y: Math.round(r.y + scrollY), w: Math.round(r.width), h: Math.round(r.height) },
         disabled, polaris: tag.startsWith('s-') || /Polaris-/.test(String(e.className || '')),
-        risk: S.classify(text, role, { disabled, interactive, externalHref, riskyHref, scriptLink, inAppLink: tag === 'a' && !!href && !externalHref && !scriptLink }),
+        risk: S.classify(text, role, { disabled, interactive, externalHref: f.externalHref, riskyHref: f.riskyHref, scriptLink: f.scriptLink, inAppLink: tag === 'a' && f.inAppLink, navLink }),
         outcome: null,
       });
     });
@@ -135,5 +160,5 @@
     return res;
   };
 
-  return { ok: true, installed: ['shopify.classify', 'shopify.unclip', 'shopify.inventory', 'shopify.tokens'], v: root.v };
+  return { ok: true, installed: ['shopify.classify', 'shopify.hrefFlags', 'shopify.unclip', 'shopify.inventory', 'shopify.tokens'], v: root.v };
 }

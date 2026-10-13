@@ -114,13 +114,18 @@ test('a required scenario cannot be waived as not-applicable', t => {
   assert.equal(f.run().passed, false);
 });
 
-test('accepts blockedByPolicy only under the shopify read-only policy with reason and evidence', t => {
+test('accepts blockedByPolicy only under the shopify read-only policy, backed by a do-not-click inventory row', t => {
   const f = fixture(t);
   f.write('hover.json', { hover: 'captured' });
-  f.ledger.interactions.push({ id: 'upgrade-btn', section: 'carousel', kind: 'button', status: 'blockedByPolicy', policyReason: 'do-not-click: Upgrade', evidence: 'hover.json' });
+  f.write('inventory.json', { elements: [{ id: 7, risk: 'do-not-click' }, { id: 8, risk: 'safe-to-open' }] });
+  f.ledger.interactions.push({ id: 'upgrade-btn', section: 'carousel', kind: 'button', status: 'blockedByPolicy', policyReason: 'do-not-click: Upgrade', evidence: 'hover.json', inventory: 'inventory.json', inventoryId: 7 });
   assert.match(f.run().errors.join('\n'), /needs ledger.policy/);
   f.ledger.policy = 'shopify-app-read-only';
   assert.deepEqual(f.run(), { passed: true, verified: 1, total: 2, errors: [] });
-  delete f.ledger.interactions[1].policyReason;
+  f.ledger.interactions[1].inventoryId = 8;
+  assert.match(f.run().errors.join('\n'), /only do-not-click\/review may be blockedByPolicy/);
+  f.ledger.interactions[1].inventoryId = 99;
+  assert.match(f.run().errors.join('\n'), /not found/);
+  f.ledger.interactions[1].inventoryId = 7; delete f.ledger.interactions[1].policyReason;
   assert.match(f.run().errors.join('\n'), /needs policyReason/);
 });

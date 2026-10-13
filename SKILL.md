@@ -246,7 +246,7 @@ Everything lives under `.clone/` in the clone project root.
 | `sections/<id>/` | `spec.json`, `content.md`, `PROMPT.md`, orig+clone captures (`.webp` for agents, `.png` for `visual-diff.mjs`), `report.md`, `requests.json`, `diff.json`, `geometry.md`. A `--section` run has exactly one. |
 | `SELECTION.md` | `--section` only: requested target, resolved source selector/id/label/role, ancestor context dependencies, and the intentional verification boundary. |
 | `pages/<pageId>/` | Default all-routes or explicit multi-page runs; same schemas per extra route. |
-| `shopify/` | `--shopify-app` only: `surfaces.md`, per-surface `*-elements.json` (inventory with risk + outcome) and `*-tokens.json`, `DESIGN-SYSTEM.md`. |
+| `shopify/` | `--shopify-app` only: `surfaces.md`, per-surface `*-elements.json` (inventory with risk + outcome) and `*-tokens.json`, `DESIGN-SYSTEM.md`. Figma link + per-frame scores go in `CLONE-REPORT.md`. |
 | `flows.json` · `flows/<flowId>/` · `FLOW-MAP.md` | App targets only (`references/flows.md`): per-flow state records, per-step captures, and the flow map. `profile/` holds a live session and is **always** gitignored. |
 | `VERIFY.md` · `CLONE-REPORT.md` · `UNRESOLVED.md` | Gate table; final report; whatever the repair budget could not close. |
 
@@ -265,4 +265,3 @@ Close by linking `.clone/CLONE-REPORT.md` and `.clone/PROVENANCE.md`.
 | Every section fails the same geometry probe | foundation is wrong, not the sections | `references/assembly.md` — systemic-cause first |
 | Mobile or dark values missing entirely | running on the Playwright fallback (no `emulate`) | `references/troubleshooting.md` — fallback map |
 
-<!-- SPEC-GAP: SPEC §H sets SKILL.md at 150-200 lines (ceiling 240) while the authoring task asked for 220-320; this file lands inside SPEC's ceiling. SPEC §H also says the third-party-marks policy note appears only in references/assets.md and CLONE-REPORT.md, but the locked user decision and the authoring task both require one short note here — included once in step 5, ungated. Headline gate numbers are restated here (task requirement) with per-property tolerances left to references/assembly.md. -->

@@ -38,12 +38,16 @@ instructions. Never sign in for the user: if logged out, stop and ask (`flows.md
 
 This replaces the website contract's "click or activate it and observe the result" for
 `do-not-click` rows: set `interactions.json` `policy: "shopify-app-read-only"` and record each such
-control with `status: "blockedByPolicy"`, a `policyReason` and its hover/focus capture as `evidence`
-(`scripts/check-interactions.mjs` accepts it only under that policy; it never counts as verified).
+control with `status: "blockedByPolicy"`, a `policyReason`, its hover/focus capture as `evidence`, and
+`inventory` + `inventoryId` pointing at its row in `<surface>-elements.json`
+(`scripts/check-interactions.mjs` accepts it only under that policy and only when that row is
+`do-not-click` or `review`; it never counts as verified).
 
 ## S2 — the frame
 
-Embedded apps render in an iframe clipped by admin chrome.
+Embedded apps render in an iframe clipped by admin chrome. Drive the browser with the Chrome
+DevTools MCP (default) or, when the user wants their own signed-in Chrome profile, Claude in
+Chrome (`mcp__claude-in-chrome__*`) in a new tab.
 - In the TOP admin document: `() => window.__clone.shopify.unclip(3600)` (re-run after
   every navigation and resize). It makes the frame full height, un-clips its ancestors and
   reports whether the frame is same-origin.
@@ -52,7 +56,8 @@ Embedded apps render in an iframe clipped by admin chrome.
   carries the session token) and install there; keep the embedded view for visual captures.
   That URL holds a live session/id token: never write it into `run.json`, reports, filenames or
   screenshots of the address bar. Record URLs without query string and hash (the scripts already
-  strip them). If the app redirects the standalone tab to an auth page, stay in the embedded view
+  strip them from every stored href and URL; the frame `src` itself is only typed into the
+  address bar, never saved). If the app redirects the standalone tab to an auth page, stay in the embedded view
   and use same-origin access or visual capture only; do not try to work around the redirect.
 - Waits: poll for a selector or text instead of one long wait.
 
@@ -120,5 +125,6 @@ compared against the original captures per surface/state/width.
 
 Layout, IA, component types and interaction patterns may be mirrored. The target's
 illustrations, icons, logos, brand colours and copy are reference only and must not ship
-in the user's product; list them in `PROVENANCE.md`. Keep captures of a store's data out of
+in the user's product; list them in `.clone/PROVENANCE.md`. The Figma file link and per-frame
+scores go into `.clone/CLONE-REPORT.md`. Keep captures of a store's data out of
 Git if they show customer information.
